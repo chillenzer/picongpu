@@ -20,8 +20,10 @@
 
 #include <pmacc/Environment.hpp>
 #include <pmacc/dimensions/DataSpace.hpp>
+#include <pmacc/memory/buffers/GridBuffer.hpp>
 
-using ::pmacc::DataSpace;
+using Space = pmacc::DataSpace<DIM3>;
+using Buffer = pmacc::GridBuffer<float, DIM3>;
 
 namespace nbody
 {
@@ -34,19 +36,45 @@ namespace nbody
     {
         // TODO: Should later be read from boost program_options.
         // Also potentially generalise to 2D use as well.
-        DataSpace<DIM3> devices{1, 1, 1};
-        DataSpace<DIM3> grid{1, 1, 1};
-        DataSpace<DIM3> periodic{1, 1, 1};
+        Space devices{1, 1, 1};
+        Space gridSize{1, 1, 1};
+        Space periodic{1, 1, 1};
         uint32_t steps = 10;
-        return std::make_tuple(steps, devices, grid, periodic);
+        return std::make_tuple(steps, devices, gridSize, periodic);
     }
 
     struct Simulation
     {
+        Space gridSize{1, 1, 1};
         uint32_t steps;
-        DataSpace<DIM3> devices{1, 1, 1};
-        DataSpace<DIM3> grid{1, 1, 1};
-        DataSpace<DIM3> periodic{1, 1, 1};
+
+        Simulation(uint32_t steps, Space gridSize, Space devices, Space periodic) : gridSize(gridSize), steps(steps)
+        {
+            /* -First this initializes the GridController with number of 'devices'*
+             *  and 'periodic'ity. The init-routine will then create and manage   *
+             *  the MPI processes and communication group and topology.           *
+             * -Second the cudaDevices will be allocated to the corresponding     *
+             *  Host MPI processes where hostRank == deviceNumber, if the device  *
+             *  is not marked to be used exclusively by another process. This     *
+             *  affects: cudaMalloc,cudaKernelLaunch,                             *
+             * -Then the CUDA Stream Controller is activated and one stream is    *
+             *  added. It's basically a List of cudaStreams. Used to parallelize  *
+             *  Memory transfers and calculations.                                */
+            pmacc::Environment<DIM3>::get().initDevices(devices, periodic);
+
+            /* Now we have allocated every node to a grid position in the GC. We  *
+             * use that grid position to allocate every node to a position in the *
+             * physic grid. Using the localGridSize = the number of cells per     *
+             * node = number of cells / nodes, we can get the position of the     *
+             * current node as an offset in numbers of cells                      */
+            pmacc::GridController<DIM3>& gc = pmacc::Environment<DIM3>::get().GridController();
+            Space localGridSize(gridSize / devices);
+
+            /* - This forwards arguments to SubGrid.init()                        *
+             * - Create Singletons: EnvironmentController, DataConnector,         *
+             *                      PluginConnector, device::MemoryInfo           */
+            pmacc::Environment<DIM3>::get().initGrids(gridSize, localGridSize, gc.getPosition() * localGridSize);
+        }
 
         Simulation& init()
         {
