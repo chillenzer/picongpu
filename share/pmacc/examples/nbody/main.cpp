@@ -48,14 +48,17 @@ namespace nbody
         DataSpace<DIM3> grid{1, 1, 1};
         DataSpace<DIM3> periodic{1, 1, 1};
 
-        void init()
+        Simulation& init()
         {
+            return *this;
         }
-        void start()
+        Simulation& start()
         {
+            return *this;
         }
-        void finalize()
+        Simulation& finalize()
         {
+            return *this;
         }
     };
 
@@ -74,14 +77,7 @@ namespace nbody
 int main(int argc, char** argv)
 {
     auto [steps, devices, grid, periodic] = nbody::basicSetup();
-
-    /* start game of life simulation */
-    nbody::Simulation sim{steps, grid, devices, periodic};
-    sim.init();
-    sim.start();
-    sim.finalize();
-
-    /* finalize the pmacc context */
+    nbody::Simulation{steps, grid, devices, periodic}.init().start().finalize();
     pmacc::Environment<>::get().finalize();
 
     return 0;
