@@ -23,6 +23,36 @@
 
 using ::pmacc::DataSpace;
 
+namespace nbody
+{
+    auto basicSetup()
+    {
+        DataSpace<DIM3> devices{1, 1, 1};
+        DataSpace<DIM3> grid{1, 1, 1};
+        DataSpace<DIM3> periodic{1, 1, 1};
+        uint32_t steps = 10;
+        return std::make_tuple(steps, devices, grid, periodic);
+    }
+
+    struct Simulation
+    {
+        uint32_t steps;
+        DataSpace<DIM3> devices{1, 1, 1};
+        DataSpace<DIM3> grid{1, 1, 1};
+        DataSpace<DIM3> periodic{1, 1, 1};
+
+        void init()
+        {
+        }
+        void start()
+        {
+        }
+        void finalize()
+        {
+        }
+    };
+
+} // namespace nbody
 /*! main function of nbody problem
  *
  * this program computes the gravitational nbody problem basically
@@ -36,13 +66,11 @@ int main(int argc, char** argv)
 {
     // TODO: Should later be read from boost program_options.
     // Also potentially generalise to 2D use as well.
-    DataSpace<DIM3> devices{1, 1, 1};
-    DataSpace<DIM3> grid{1, 1, 1};
-    DataSpace<DIM3> periodic{1, 1, 1};
-    uint32_t steps = 10;
+
+    auto [steps, devices, grid, periodic] = nbody::basicSetup();
 
     /* start game of life simulation */
-    nbody::Simulation sim(steps, grid, devices, periodic);
+    nbody::Simulation sim{steps, grid, devices, periodic};
     sim.init();
     sim.start();
     sim.finalize();
