@@ -25,8 +25,15 @@ using ::pmacc::DataSpace;
 
 namespace nbody
 {
+    /*! basic setup returning number of devices, steps and grid sites as well as periodicity
+     *
+     * this is currently hardcoded but shall later be the place to read cmdline
+     * args, etc.
+     */
     auto basicSetup()
     {
+        // TODO: Should later be read from boost program_options.
+        // Also potentially generalise to 2D use as well.
         DataSpace<DIM3> devices{1, 1, 1};
         DataSpace<DIM3> grid{1, 1, 1};
         DataSpace<DIM3> periodic{1, 1, 1};
@@ -53,6 +60,8 @@ namespace nbody
     };
 
 } // namespace nbody
+
+
 /*! main function of nbody problem
  *
  * this program computes the gravitational nbody problem basically
@@ -64,9 +73,6 @@ namespace nbody
  */
 int main(int argc, char** argv)
 {
-    // TODO: Should later be read from boost program_options.
-    // Also potentially generalise to 2D use as well.
-
     auto [steps, devices, grid, periodic] = nbody::basicSetup();
 
     /* start game of life simulation */
