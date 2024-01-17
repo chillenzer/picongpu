@@ -67,7 +67,7 @@ namespace nbody
         bool isMaster;
         Evolution evo;
 
-        using MappingDesc = pmacc::MappingDescription<DIM2, pmacc::math::CT::Int<16, 16, 16>>;
+        using MappingDesc = pmacc::MappingDescription<DIM3, pmacc::math::CT::Int<16, 16, 16>>;
 
     public:
         Simulation(uint32_t const steps, Space const& gridSize, Space const& devices, Space const& periodic)
@@ -116,15 +116,7 @@ namespace nbody
         }
 
     public:
-        Simulation& init()
-        {
-            return *this;
-        }
         Simulation& start()
-        {
-            return *this;
-        }
-        Simulation& finalize()
         {
             return *this;
         }
@@ -145,7 +137,7 @@ namespace nbody
 int main(int argc, char** argv)
 {
     auto [steps, devices, grid, periodic] = nbody::basicSetup();
-    nbody::Simulation{steps, grid, devices, periodic}.init().start().finalize();
+    nbody::Simulation{steps, grid, devices, periodic}.start();
     pmacc::Environment<>::get().finalize();
 
     return 0;
