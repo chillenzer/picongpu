@@ -21,17 +21,56 @@
 #include <pmacc/Environment.hpp>
 #include <pmacc/dimensions/DataSpace.hpp>
 #include <pmacc/dimensions/GridLayout.hpp>
+#include <pmacc/identifier/value_identifier.hpp>
 #include <pmacc/mappings/kernel/MappingDescription.hpp>
-#include <pmacc/memory/buffers/GridBuffer.hpp>
 #include <pmacc/memory/dataTypes/Mask.hpp>
+#include <pmacc/meta/String.hpp>
 #include <pmacc/mpi/GatherSlice.hpp>
+#include <pmacc/particles/ParticleDescription.hpp>
+#include <pmacc/particles/ParticlesBase.hpp>
 #include <pmacc/traits/NumberOfExchanges.hpp>
 
+#include <memory>
+
+#if(BOOST_LANG_CUDA || BOOST_COMP_HIP)
+#    include <mallocMC/mallocMC.hpp>
+using DeviceHeap = mallocMC::Allocator<
+    cupla::Acc,
+    mallocMC::CreationPolicies::Scatter<DeviceHeapConfig>,
+    mallocMC::DistributionPolicies::Noop,
+    mallocMC::OOMPolicies::ReturnNull,
+    mallocMC::ReservePoolPolicies::AlpakaBuf<cupla::Acc>,
+    mallocMC::AlignmentPolicies::Shrink<>>;
+#else
+struct DeviceHeap
+{
+    using AllocatorHandle = int;
+
+    int getAllocatorHandle()
+    {
+        return 0;
+    }
+};
+#endif
+
 using Space = pmacc::DataSpace<DIM3>;
-using Buffer = pmacc::GridBuffer<float, DIM3>;
+using float3 = pmacc::math::Vector<float, 3u>;
 
 namespace nbody
 {
+    value_identifier(float3, position, float3::create(0.));
+    value_identifier(float, mass, 1.);
+
+    constexpr const uint32_t numSlots = 256;
+    using MappingDesc = pmacc::MappingDescription<DIM3, pmacc::math::CT::Int<16, 16, 16>>;
+    using TrivialParticleDescription = pmacc::ParticleDescription<
+        PMACC_CSTRING("particle"),
+        std::integral_constant<uint32_t, numSlots>,
+        MappingDesc::SuperCellSize,
+        pmacc::MakeSeq_t<position, mass>>;
+
+    using Particles = pmacc::ParticlesBase<TrivialParticleDescription, MappingDesc, DeviceHeap>;
+
     /*! basic setup returning number of devices, steps and grid sites as well as periodicity
      *
      * this is currently hardcoded but shall later be the place to read cmdline
@@ -61,8 +100,6 @@ namespace nbody
     private:
         Space gridSize{1, 1, 1};
         uint32_t steps;
-        std::unique_ptr<Buffer> buff1; /* Buffer(@see types.h) for swapping between old and new world */
-        std::unique_ptr<Buffer> buff2; /* like evolve(buff2 &, const buff1) would work internally */
         std::unique_ptr<pmacc::mpi::GatherSlice> gather;
         bool isMaster;
         Evolution evo;
@@ -76,7 +113,6 @@ namespace nbody
         {
             pmacc::Environment<DIM3>::get().initDevices(devices, periodic);
             auto layout = initGrids(devices, periodic);
-            initBuffers(layout);
             initEvolution(layout);
             initCommunication();
         }
@@ -88,25 +124,12 @@ namespace nbody
             pmacc::GridController<DIM3>& gc = pmacc::Environment<DIM3>::get().GridController();
             pmacc::Environment<DIM3>::get().initGrids(gridSize, localGridSize, gc.getPosition() * localGridSize);
             const pmacc::SubGrid<DIM3>& subGrid = pmacc::Environment<DIM3>::get().SubGrid();
-            return pmacc::GridLayout<DIM3>(subGrid.getLocalDomain().size, MappingDesc::SuperCellSize::toRT());
+            return {subGrid.getLocalDomain().size, MappingDesc::SuperCellSize::toRT()};
         }
 
         void initEvolution(pmacc::GridLayout<DIM3> const& layout)
         {
             evo.init(layout.getDataSpace(), Space::create(1));
-            evo.initEvolution(buff1->getDeviceBuffer().getDataBox(), 0.1);
-        }
-
-        void initBuffers(pmacc::GridLayout<DIM3> const& layout)
-        {
-            buff1 = std::make_unique<Buffer>(layout, false);
-            buff2 = std::make_unique<Buffer>(layout, false);
-            auto guardingCells = Space::create(0);
-            for(uint32_t i = 1; i < pmacc::traits::NumberOfExchanges<DIM3>::value; ++i)
-            {
-                buff1->addExchange(pmacc::type::GUARD, pmacc::Mask(i), guardingCells, 0u);
-                buff2->addExchange(pmacc::type::GUARD, pmacc::Mask(i), guardingCells, 1u);
-            }
         }
 
         void initCommunication()
