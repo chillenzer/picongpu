@@ -20,7 +20,12 @@
 
 #include <pmacc/Environment.hpp>
 #include <pmacc/dimensions/DataSpace.hpp>
+#include <pmacc/dimensions/GridLayout.hpp>
+#include <pmacc/mappings/kernel/MappingDescription.hpp>
 #include <pmacc/memory/buffers/GridBuffer.hpp>
+#include <pmacc/memory/dataTypes/Mask.hpp>
+#include <pmacc/mpi/GatherSlice.hpp>
+#include <pmacc/traits/NumberOfExchanges.hpp>
 
 using Space = pmacc::DataSpace<DIM3>;
 using Buffer = pmacc::GridBuffer<float, DIM3>;
@@ -43,39 +48,74 @@ namespace nbody
         return std::make_tuple(steps, devices, gridSize, periodic);
     }
 
+    struct Evolution
+    {
+        template<class... T>
+        void init(T... args){};
+        template<class... T>
+        void initEvolution(T... args){};
+    };
+
     struct Simulation
     {
+    private:
         Space gridSize{1, 1, 1};
         uint32_t steps;
+        std::unique_ptr<Buffer> buff1; /* Buffer(@see types.h) for swapping between old and new world */
+        std::unique_ptr<Buffer> buff2; /* like evolve(buff2 &, const buff1) would work internally */
+        std::unique_ptr<pmacc::mpi::GatherSlice> gather;
+        bool isMaster;
+        Evolution evo;
 
-        Simulation(uint32_t steps, Space gridSize, Space devices, Space periodic) : gridSize(gridSize), steps(steps)
+        using MappingDesc = pmacc::MappingDescription<DIM2, pmacc::math::CT::Int<16, 16, 16>>;
+
+    public:
+        Simulation(uint32_t const steps, Space const& gridSize, Space const& devices, Space const& periodic)
+            : gridSize(gridSize)
+            , steps(steps)
         {
-            /* -First this initializes the GridController with number of 'devices'*
-             *  and 'periodic'ity. The init-routine will then create and manage   *
-             *  the MPI processes and communication group and topology.           *
-             * -Second the cudaDevices will be allocated to the corresponding     *
-             *  Host MPI processes where hostRank == deviceNumber, if the device  *
-             *  is not marked to be used exclusively by another process. This     *
-             *  affects: cudaMalloc,cudaKernelLaunch,                             *
-             * -Then the CUDA Stream Controller is activated and one stream is    *
-             *  added. It's basically a List of cudaStreams. Used to parallelize  *
-             *  Memory transfers and calculations.                                */
             pmacc::Environment<DIM3>::get().initDevices(devices, periodic);
-
-            /* Now we have allocated every node to a grid position in the GC. We  *
-             * use that grid position to allocate every node to a position in the *
-             * physic grid. Using the localGridSize = the number of cells per     *
-             * node = number of cells / nodes, we can get the position of the     *
-             * current node as an offset in numbers of cells                      */
-            pmacc::GridController<DIM3>& gc = pmacc::Environment<DIM3>::get().GridController();
-            Space localGridSize(gridSize / devices);
-
-            /* - This forwards arguments to SubGrid.init()                        *
-             * - Create Singletons: EnvironmentController, DataConnector,         *
-             *                      PluginConnector, device::MemoryInfo           */
-            pmacc::Environment<DIM3>::get().initGrids(gridSize, localGridSize, gc.getPosition() * localGridSize);
+            auto layout = initGrids(devices, periodic);
+            initBuffers(layout);
+            initEvolution(layout);
+            initCommunication();
         }
 
+    private:
+        pmacc::GridLayout<DIM3> initGrids(Space const& devices, Space const& periodic)
+        {
+            Space localGridSize(gridSize / devices);
+            pmacc::GridController<DIM3>& gc = pmacc::Environment<DIM3>::get().GridController();
+            pmacc::Environment<DIM3>::get().initGrids(gridSize, localGridSize, gc.getPosition() * localGridSize);
+            const pmacc::SubGrid<DIM3>& subGrid = pmacc::Environment<DIM3>::get().SubGrid();
+            return pmacc::GridLayout<DIM3>(subGrid.getLocalDomain().size, MappingDesc::SuperCellSize::toRT());
+        }
+
+        void initEvolution(pmacc::GridLayout<DIM3> const& layout)
+        {
+            evo.init(layout.getDataSpace(), Space::create(1));
+            evo.initEvolution(buff1->getDeviceBuffer().getDataBox(), 0.1);
+        }
+
+        void initBuffers(pmacc::GridLayout<DIM3> const& layout)
+        {
+            buff1 = std::make_unique<Buffer>(layout, false);
+            buff2 = std::make_unique<Buffer>(layout, false);
+            auto guardingCells = Space::create(0);
+            for(uint32_t i = 1; i < pmacc::traits::NumberOfExchanges<DIM3>::value; ++i)
+            {
+                buff1->addExchange(pmacc::type::GUARD, pmacc::Mask(i), guardingCells, 0u);
+                buff2->addExchange(pmacc::type::GUARD, pmacc::Mask(i), guardingCells, 1u);
+            }
+        }
+
+        void initCommunication()
+        {
+            gather = std::make_unique<pmacc::mpi::GatherSlice>();
+            isMaster = gather->participate(true);
+        }
+
+    public:
         Simulation& init()
         {
             return *this;
