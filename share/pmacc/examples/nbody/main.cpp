@@ -18,6 +18,8 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "DeviceHeap.hpp"
+
 #include <pmacc/Environment.hpp>
 #include <pmacc/dimensions/DataSpace.hpp>
 #include <pmacc/dimensions/GridLayout.hpp>
@@ -32,26 +34,6 @@
 
 #include <memory>
 
-#if(BOOST_LANG_CUDA || BOOST_COMP_HIP)
-#    include <mallocMC/mallocMC.hpp>
-using DeviceHeap = mallocMC::Allocator<
-    cupla::Acc,
-    mallocMC::CreationPolicies::Scatter<DeviceHeapConfig>,
-    mallocMC::DistributionPolicies::Noop,
-    mallocMC::OOMPolicies::ReturnNull,
-    mallocMC::ReservePoolPolicies::AlpakaBuf<cupla::Acc>,
-    mallocMC::AlignmentPolicies::Shrink<>>;
-#else
-struct DeviceHeap
-{
-    using AllocatorHandle = int;
-
-    int getAllocatorHandle()
-    {
-        return 0;
-    }
-};
-#endif
 
 using Space = pmacc::DataSpace<DIM3>;
 using float3 = pmacc::math::Vector<float, 3u>;
