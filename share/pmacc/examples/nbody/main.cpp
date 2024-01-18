@@ -67,8 +67,6 @@ namespace nbody
         bool isMaster;
         Evolution evo;
 
-        using MappingDesc = pmacc::MappingDescription<DIM3, pmacc::math::CT::Int<16, 16, 16>>;
-
     public:
         Simulation(uint32_t const steps, Space const& gridSize, Space const& devices, Space const& periodic)
             : gridSize(gridSize)

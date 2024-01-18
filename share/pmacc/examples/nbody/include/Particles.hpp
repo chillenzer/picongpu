@@ -35,7 +35,7 @@ namespace nbody
     value_identifier(float, mass, 1.);
 
     constexpr const uint32_t numSlots = 256;
-    using MappingDesc = pmacc::MappingDescription<DIM3, pmacc::math::CT::Int<16, 16, 16>>;
+    using MappingDesc = pmacc::MappingDescription < DIM3, pmacc::math::CT::Int<8, 8, 8>;
     using TrivialParticleDescription = pmacc::ParticleDescription<
         PMACC_CSTRING("particle"),
         std::integral_constant<uint32_t, numSlots>,
