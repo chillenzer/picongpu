@@ -22,6 +22,7 @@
 
 #include "DeviceHeap.hpp"
 
+#include <pmacc/Environment.hpp>
 #include <pmacc/identifier/value_identifier.hpp>
 #include <pmacc/mappings/kernel/MappingDescription.hpp>
 #include <pmacc/meta/String.hpp>
@@ -31,6 +32,7 @@
 namespace nbody
 {
     using MappingDesc = pmacc::MappingDescription<DIM3, pmacc::math::CT::Int<8, 8, 4>>;
+    using Space = pmacc::DataSpace<DIM3>;
     namespace detail
     {
         using float3 = pmacc::math::Vector<float, 3u>;
@@ -45,6 +47,14 @@ namespace nbody
             pmacc::MakeSeq_t<position, mass>>;
 
         using SpecialisedParticlesBase = pmacc::ParticlesBase<TrivialParticleDescription, MappingDesc, DeviceHeap>;
+
+        struct KernelFillGridWithParticles
+        {
+            template<typename... T>
+            void operator()(T... args) const
+            {
+            }
+        };
     } // namespace detail
 
     struct Particles : public detail::SpecialisedParticlesBase
@@ -52,12 +62,37 @@ namespace nbody
         // TODO: Actually write this, currently it just tries to pass everything
         // to the base
         template<typename... T>
-        Particles(T... args) : detail::SpecialisedParticlesBase(args...){};
+        Particles(T... args) : detail::SpecialisedParticlesBase(args...)
+        {
+            initPositions();
+        };
 
         void syncToDevice() override
         {
-            // well-established recipe from picong/particles/Particles.tpp:
-            // do nothing here
+            // well-established recipe from picongpu/particles/Particles.tpp:
+            // do nothing
+        }
+
+    private:
+        void initPositions()
+        {
+            auto const totalGpuCellOffset = computeTotalGpuCellOffset();
+            auto const mapper = pmacc::makeAreaMapper<pmacc::type::CORE + pmacc::type::BORDER>(this->cellDescription);
+            auto workerCfg = pmacc::lockstep::makeWorkerCfg(MappingDesc::SuperCellSize{});
+            PMACC_LOCKSTEP_KERNEL(detail::KernelFillGridWithParticles{}, workerCfg)
+            (mapper.getGridDim())(totalGpuCellOffset, this->particlesBuffer->getDeviceParticleBox(), mapper);
+
+            this->fillAllGaps();
+        }
+
+        Space computeTotalGpuCellOffset()
+        {
+            uint32_t const numSlides = 0u;
+            pmacc::SubGrid<DIM3> const& subGrid = pmacc::Environment<DIM3>::get().SubGrid();
+            Space localCells = subGrid.getLocalDomain().size;
+            Space totalGpuCellOffset = subGrid.getLocalDomain().offset;
+            totalGpuCellOffset.y() += numSlides * localCells.y();
+            return totalGpuCellOffset;
         }
     };
 } // namespace nbody

@@ -79,8 +79,7 @@ int main(int argc, char** argv)
     auto [steps, devices, gridSize, localGridSize, periodic] = readArgs(argc, argv);
     pmacc::Environment<DIM3>::get().initDevices(devices, periodic);
     auto layout = initGrids(gridSize, localGridSize, periodic);
-    auto deviceHeap = std::make_shared<DeviceHeap>();
-    Particles particles{deviceHeap, MappingDesc{layout.getDataSpaceWithoutGuarding(), layout.getGuard()}};
+    Particles{std::make_shared<DeviceHeap>(), MappingDesc{layout.getDataSpaceWithoutGuarding(), layout.getGuard()}};
     runSimulation();
     pmacc::Environment<>::get().finalize();
 
