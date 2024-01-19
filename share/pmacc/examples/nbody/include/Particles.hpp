@@ -21,6 +21,8 @@
 #pragma once
 
 #include "DeviceHeap.hpp"
+#include "cupla/device/Atomic.hpp"
+#include "pmacc/particles/Identifier.hpp"
 
 #include <pmacc/Environment.hpp>
 #include <pmacc/identifier/value_identifier.hpp>
@@ -68,6 +70,37 @@ namespace nbody
                         frame[idx][pmacc::multiMask_] = 1;
                         frame[idx][pmacc::localCellIdx_] = idx;
                     });
+                worker.sync();
+            }
+        };
+        struct CheckInit
+        {
+            template<typename T_Worker, typename T_ParBox, typename T_Mapping>
+            void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
+            {
+                // CAUTION: This currently only works for a single super cell and
+                // a single frame.
+                // TODO: Generalise!
+                Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
+                auto frame = pb.getLastFrame(superCellIdx);
+                constexpr uint32_t cellsPerSupercell
+                    = pmacc::math::CT::volume<MappingDesc::SuperCellSize>::type::value;
+                auto forEachCellInSuperCell = pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
+                PMACC_SMEM(worker, correct, bool);
+                correct = true;
+                forEachCellInSuperCell(
+                    [&frame, &worker, &correct](uint32_t const idx)
+                    {
+                        cupla::atomicAnd(
+                            worker.getAcc(),
+                            &correct,
+                            frame[idx][pmacc::multiMask_] == 1 && frame[idx][pmacc::localCellIdx_] == idx
+                                && frame[idx][detail::position_] == float3::create(0.)
+                                && frame[idx][detail::mass_] == 0,
+                            ::alpaka::hierarchy::Threads{});
+                    });
+                worker.sync();
+                std::cout << std::boolalpha << correct << "\n";
             }
         };
     } // namespace detail
@@ -96,6 +129,8 @@ namespace nbody
             PMACC_LOCKSTEP_KERNEL(detail::KernelFillGridWithParticles{}, workerCfg)
             (mapper.getGridDim())(this->particlesBuffer->getDeviceParticleBox(), mapper);
             this->fillAllGaps();
+            PMACC_LOCKSTEP_KERNEL(detail::CheckInit{}, workerCfg)
+            (mapper.getGridDim())(this->particlesBuffer->getDeviceParticleBox(), mapper);
         }
     };
 } // namespace nbody
