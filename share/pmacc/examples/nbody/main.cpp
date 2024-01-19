@@ -34,77 +34,32 @@ using Space = pmacc::DataSpace<DIM3>;
 
 namespace nbody
 {
-    /*! basic setup returning number of devices, steps and grid sites as well as periodicity
+    /*! read basic setup returning number of devices, steps and grid sites as well as periodicity
      *
      * this is currently hardcoded but shall later be the place to read cmdline
      * args, etc.
      */
-    auto basicSetup()
+    auto readArgs([[maybe_unused]] int argc, [[maybe_unused]] char** argv)
     {
         // TODO: Should later be read from boost program_options.
         // Also potentially generalise to 2D use as well.
         Space devices{1, 1, 1};
         Space gridSize{1, 1, 1};
+        Space localGridSize(gridSize / devices);
         Space periodic{1, 1, 1};
         uint32_t steps = 10;
-        return std::make_tuple(steps, devices, gridSize, periodic);
+        return std::make_tuple(steps, devices, gridSize, localGridSize, periodic);
     }
 
-    struct Evolution
+    pmacc::GridLayout<DIM3> initGrids(Space const& gridSize, Space const& localGridSize, Space const& periodic)
     {
-        template<class... T>
-        void init(T... args){};
-        template<class... T>
-        void initEvolution(T... args){};
-    };
+        pmacc::GridController<DIM3>& gc = pmacc::Environment<DIM3>::get().GridController();
+        pmacc::Environment<DIM3>::get().initGrids(gridSize, localGridSize, gc.getPosition() * localGridSize);
+        const pmacc::SubGrid<DIM3>& subGrid = pmacc::Environment<DIM3>::get().SubGrid();
+        return {subGrid.getLocalDomain().size, MappingDesc::SuperCellSize::toRT()};
+    }
 
-    struct Simulation
-    {
-    private:
-        Space gridSize{1, 1, 1};
-        uint32_t steps;
-        std::unique_ptr<pmacc::mpi::GatherSlice> gather;
-        bool isMaster;
-        Evolution evo;
-
-    public:
-        Simulation(uint32_t const steps, Space const& gridSize, Space const& devices, Space const& periodic)
-            : gridSize(gridSize)
-            , steps(steps)
-        {
-            pmacc::Environment<DIM3>::get().initDevices(devices, periodic);
-            auto layout = initGrids(devices, periodic);
-            initEvolution(layout);
-            initCommunication();
-        }
-
-    private:
-        pmacc::GridLayout<DIM3> initGrids(Space const& devices, Space const& periodic)
-        {
-            Space localGridSize(gridSize / devices);
-            pmacc::GridController<DIM3>& gc = pmacc::Environment<DIM3>::get().GridController();
-            pmacc::Environment<DIM3>::get().initGrids(gridSize, localGridSize, gc.getPosition() * localGridSize);
-            const pmacc::SubGrid<DIM3>& subGrid = pmacc::Environment<DIM3>::get().SubGrid();
-            return {subGrid.getLocalDomain().size, MappingDesc::SuperCellSize::toRT()};
-        }
-
-        void initEvolution(pmacc::GridLayout<DIM3> const& layout)
-        {
-            evo.init(layout.getDataSpace(), Space::create(1));
-        }
-
-        void initCommunication()
-        {
-            gather = std::make_unique<pmacc::mpi::GatherSlice>();
-            isMaster = gather->participate(true);
-        }
-
-    public:
-        Simulation& start()
-        {
-            return *this;
-        }
-    };
+    auto runSimulation(){};
 
 } // namespace nbody
 
@@ -120,8 +75,10 @@ namespace nbody
  */
 int main(int argc, char** argv)
 {
-    auto [steps, devices, grid, periodic] = nbody::basicSetup();
-    nbody::Simulation{steps, grid, devices, periodic}.start();
+    auto [steps, devices, gridSize, localGridSize, periodic] = nbody::readArgs(argc, argv);
+    pmacc::Environment<DIM3>::get().initDevices(devices, periodic);
+    nbody::initGrids(gridSize, localGridSize, periodic);
+    nbody::runSimulation();
     pmacc::Environment<>::get().finalize();
 
     return 0;
