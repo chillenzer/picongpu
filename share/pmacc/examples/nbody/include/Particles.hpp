@@ -50,9 +50,12 @@ namespace nbody
 
         struct KernelFillGridWithParticles
         {
-            template<typename... T>
-            void operator()(T... args) const
+            template<typename T_Worker, typename... T>
+            void operator()(T_Worker const& worker, T... args) const
             {
+                constexpr uint32_t cellsPerSupercell
+                    = pmacc::math::CT::volume<MappingDesc::SuperCellSize>::type::value;
+                auto forEachCellInSuperCell = pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
             }
         };
     } // namespace detail
