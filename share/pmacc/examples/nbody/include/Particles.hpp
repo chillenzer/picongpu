@@ -151,6 +151,24 @@ namespace nbody
                 worker.sync();
             }
         };
+        struct KernelUpdatePositions
+        {
+            template<typename T_Worker, typename T_ParBox, typename T_Mapping>
+            void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
+            {
+                // CAUTION: This currently only works for a single super cell and
+                // a single frame.
+                // TODO: Generalise!
+                Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
+                auto frame = pb.getLastFrame(superCellIdx);
+                constexpr uint32_t cellsPerSupercell
+                    = pmacc::math::CT::volume<MappingDesc::SuperCellSize>::type::value;
+                auto forEachCellInSuperCell = pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
+                forEachCellInSuperCell([&frame](uint32_t const idx)
+                                       { frame[idx][detail::position_] += timestep * frame[idx][detail::velocity_]; });
+                worker.sync();
+            }
+        };
     } // namespace detail
 
     // NOTE: This is only a class because ParticleBase has a protected constructor.
@@ -177,7 +195,13 @@ namespace nbody
             PMACC_LOCKSTEP_KERNEL(detail::KernelUpdateVelocities{}, workerCfg)
             (mapper.getGridDim())(this->particlesBuffer->getDeviceParticleBox(), mapper);
         }
-        void updatePositions(){};
+        void updatePositions()
+        {
+            auto const mapper = pmacc::makeAreaMapper<pmacc::type::CORE + pmacc::type::BORDER>(this->cellDescription);
+            auto workerCfg = pmacc::lockstep::makeWorkerCfg(MappingDesc::SuperCellSize{});
+            PMACC_LOCKSTEP_KERNEL(detail::KernelUpdatePositions{}, workerCfg)
+            (mapper.getGridDim())(this->particlesBuffer->getDeviceParticleBox(), mapper);
+        }
 
     private:
         void initPositions()
