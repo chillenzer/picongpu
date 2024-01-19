@@ -75,10 +75,13 @@ namespace nbody
  */
 int main(int argc, char** argv)
 {
-    auto [steps, devices, gridSize, localGridSize, periodic] = nbody::readArgs(argc, argv);
+    using namespace nbody;
+    auto [steps, devices, gridSize, localGridSize, periodic] = readArgs(argc, argv);
     pmacc::Environment<DIM3>::get().initDevices(devices, periodic);
-    nbody::initGrids(gridSize, localGridSize, periodic);
-    nbody::runSimulation();
+    auto layout = initGrids(gridSize, localGridSize, periodic);
+    auto deviceHeap = std::make_shared<DeviceHeap>();
+    Particles particles{deviceHeap, MappingDesc{layout.getDataSpaceWithoutGuarding(), layout.getGuard()}};
+    runSimulation();
     pmacc::Environment<>::get().finalize();
 
     return 0;
