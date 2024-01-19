@@ -19,7 +19,6 @@
  */
 
 #include "Particles.hpp"
-#include "dynamics.hpp"
 
 #include <pmacc/Environment.hpp>
 #include <pmacc/dimensions/DataSpace.hpp>
@@ -47,7 +46,7 @@ namespace nbody
         Space devices{1, 1, 1};
         Space gridSize{8, 8, 4};
         Space localGridSize(gridSize / devices);
-        Space periodic{1, 1, 1};
+        Space periodic{0, 0, 0};
         uint32_t steps = 10;
         return std::make_tuple(steps, devices, gridSize, localGridSize, periodic);
     }
@@ -64,8 +63,8 @@ namespace nbody
     {
         for(uint32_t step = 0; step < steps; ++step)
         {
-            updateVelocities(particles);
-            updatePositions(particles);
+            particles.updateVelocities();
+            particles.updatePositions();
         }
     }
 
