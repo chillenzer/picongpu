@@ -30,17 +30,34 @@
 
 namespace nbody
 {
-    using float3 = pmacc::math::Vector<float, 3u>;
-    value_identifier(float3, position, float3::create(0.));
-    value_identifier(float, mass, 1.);
+    using MappingDesc = pmacc::MappingDescription<DIM3, pmacc::math::CT::Int<8, 8, 4>>;
+    namespace detail
+    {
+        using float3 = pmacc::math::Vector<float, 3u>;
+        value_identifier(float3, position, float3::create(0.));
+        value_identifier(float, mass, 1.);
 
-    constexpr const uint32_t numSlots = 256;
-    using MappingDesc = pmacc::MappingDescription < DIM3, pmacc::math::CT::Int<8, 8, 8>;
-    using TrivialParticleDescription = pmacc::ParticleDescription<
-        PMACC_CSTRING("particle"),
-        std::integral_constant<uint32_t, numSlots>,
-        MappingDesc::SuperCellSize,
-        pmacc::MakeSeq_t<position, mass>>;
+        constexpr const uint32_t numSlots = 256;
+        using TrivialParticleDescription = pmacc::ParticleDescription<
+            PMACC_CSTRING("particle"),
+            std::integral_constant<uint32_t, numSlots>,
+            MappingDesc::SuperCellSize,
+            pmacc::MakeSeq_t<position, mass>>;
 
-    using Particles = pmacc::ParticlesBase<TrivialParticleDescription, MappingDesc, DeviceHeap>;
+        using SpecialisedParticlesBase = pmacc::ParticlesBase<TrivialParticleDescription, MappingDesc, DeviceHeap>;
+    } // namespace detail
+
+    struct Particles : public detail::SpecialisedParticlesBase
+    {
+        // TODO: Actually write this, currently it just tries to pass everything
+        // to the base
+        template<typename... T>
+        Particles(T... args) : detail::SpecialisedParticlesBase(args...){};
+
+        void syncToDevice() override
+        {
+            // well-established recipe from picong/particles/Particles.tpp:
+            // do nothing here
+        }
+    };
 } // namespace nbody
