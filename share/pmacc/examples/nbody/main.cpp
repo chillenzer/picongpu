@@ -19,6 +19,7 @@
  */
 
 #include "Particles.hpp"
+#include "dynamics.hpp"
 
 #include <pmacc/Environment.hpp>
 #include <pmacc/dimensions/DataSpace.hpp>
@@ -59,7 +60,14 @@ namespace nbody
         return {subGrid.getLocalDomain().size, MappingDesc::SuperCellSize::toRT()};
     }
 
-    auto runSimulation(){};
+    auto runSimulation(Particles& particles, uint32_t const steps)
+    {
+        for(uint32_t step = 0; step < steps; ++step)
+        {
+            updateVelocities(particles);
+            updatePositions(particles);
+        }
+    }
 
 } // namespace nbody
 
@@ -79,8 +87,8 @@ int main(int argc, char** argv)
     auto [steps, devices, gridSize, localGridSize, periodic] = readArgs(argc, argv);
     pmacc::Environment<DIM3>::get().initDevices(devices, periodic);
     auto layout = initGrids(gridSize, localGridSize, periodic);
-    Particles{std::make_shared<DeviceHeap>(), MappingDesc{layout.getDataSpaceWithoutGuarding()}};
-    runSimulation();
+    auto particles = Particles{std::make_shared<DeviceHeap>(), MappingDesc{layout.getDataSpaceWithoutGuarding()}};
+    runSimulation(particles, steps);
     pmacc::Environment<>::get().finalize();
 
     return 0;
