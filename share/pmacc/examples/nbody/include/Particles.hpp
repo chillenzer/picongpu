@@ -105,6 +105,7 @@ namespace nbody
         };
     } // namespace detail
 
+    // NOTE: This is only a class because ParticleBase has a protected constructor.
     struct Particles : public detail::SpecialisedParticlesBase
     {
         // TODO: Actually write this, currently it just tries to pass everything

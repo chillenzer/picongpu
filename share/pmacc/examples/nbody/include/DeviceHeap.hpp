@@ -26,6 +26,7 @@
 
 namespace nbody
 {
+    // NOTE: This is ackward!
 #if(BOOST_LANG_CUDA || BOOST_COMP_HIP)
     using DeviceHeap = mallocMC::Allocator<
         cupla::Acc,
