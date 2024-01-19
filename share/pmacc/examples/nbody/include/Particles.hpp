@@ -50,12 +50,24 @@ namespace nbody
 
         struct KernelFillGridWithParticles
         {
-            template<typename T_Worker, typename... T>
-            void operator()(T_Worker const& worker, T... args) const
+            template<typename T_Worker, typename T_ParBox, typename T_Mapping>
+            void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
             {
+                // CAUTION: This currently only works for a single super cell and
+                // a single frame.
+                // TODO: Generalise!
+                Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
+                auto frame = pb.getEmptyFrame(worker);
+                pb.setAsLastFrame(worker, frame, superCellIdx);
                 constexpr uint32_t cellsPerSupercell
                     = pmacc::math::CT::volume<MappingDesc::SuperCellSize>::type::value;
                 auto forEachCellInSuperCell = pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
+                forEachCellInSuperCell(
+                    [&frame](uint32_t const idx)
+                    {
+                        frame[idx][pmacc::multiMask_] = 1;
+                        frame[idx][pmacc::localCellIdx_] = idx;
+                    });
             }
         };
     } // namespace detail
@@ -79,23 +91,11 @@ namespace nbody
     private:
         void initPositions()
         {
-            auto const totalGpuCellOffset = computeTotalGpuCellOffset();
             auto const mapper = pmacc::makeAreaMapper<pmacc::type::CORE + pmacc::type::BORDER>(this->cellDescription);
             auto workerCfg = pmacc::lockstep::makeWorkerCfg(MappingDesc::SuperCellSize{});
             PMACC_LOCKSTEP_KERNEL(detail::KernelFillGridWithParticles{}, workerCfg)
-            (mapper.getGridDim())(totalGpuCellOffset, this->particlesBuffer->getDeviceParticleBox(), mapper);
-
+            (mapper.getGridDim())(this->particlesBuffer->getDeviceParticleBox(), mapper);
             this->fillAllGaps();
-        }
-
-        Space computeTotalGpuCellOffset()
-        {
-            uint32_t const numSlides = 0u;
-            pmacc::SubGrid<DIM3> const& subGrid = pmacc::Environment<DIM3>::get().SubGrid();
-            Space localCells = subGrid.getLocalDomain().size;
-            Space totalGpuCellOffset = subGrid.getLocalDomain().offset;
-            totalGpuCellOffset.y() += numSlides * localCells.y();
-            return totalGpuCellOffset;
         }
     };
 } // namespace nbody

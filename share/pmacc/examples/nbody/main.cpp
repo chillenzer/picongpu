@@ -44,7 +44,7 @@ namespace nbody
         // TODO: Should later be read from boost program_options.
         // Also potentially generalise to 2D use as well.
         Space devices{1, 1, 1};
-        Space gridSize{1, 1, 1};
+        Space gridSize{8, 8, 4};
         Space localGridSize(gridSize / devices);
         Space periodic{1, 1, 1};
         uint32_t steps = 10;
@@ -79,7 +79,7 @@ int main(int argc, char** argv)
     auto [steps, devices, gridSize, localGridSize, periodic] = readArgs(argc, argv);
     pmacc::Environment<DIM3>::get().initDevices(devices, periodic);
     auto layout = initGrids(gridSize, localGridSize, periodic);
-    Particles{std::make_shared<DeviceHeap>(), MappingDesc{layout.getDataSpaceWithoutGuarding(), layout.getGuard()}};
+    Particles{std::make_shared<DeviceHeap>(), MappingDesc{layout.getDataSpaceWithoutGuarding()}};
     runSimulation();
     pmacc::Environment<>::get().finalize();
 
