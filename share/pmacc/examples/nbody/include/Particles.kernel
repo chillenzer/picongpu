@@ -32,11 +32,11 @@ namespace nbody::particles::kernels
     using pmacc::multiMask_;
 
     template<typename T_Worker, typename T_ParBox, typename T_Mapping>
-    auto createEmptyLastFrame(T_Worker const& worker, T_ParBox& pb, T_Mapping mapper)
+    auto createEmptyLastFrame(T_Worker const& worker, T_ParBox& particleBox, T_Mapping mapper)
     {
         Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
-        auto frame = pb.getEmptyFrame(worker);
-        pb.setAsLastFrame(worker, frame, superCellIdx);
+        auto frame = particleBox.getEmptyFrame(worker);
+        particleBox.setAsLastFrame(worker, frame, superCellIdx);
         return frame;
     }
     template<typename T_Worker, typename T_Mapping>
@@ -47,10 +47,10 @@ namespace nbody::particles::kernels
     }
 
     template<typename T_Worker, typename T_ParBox, typename T_Mapping>
-    auto kernelSetup(T_Worker const& worker, T_ParBox const& pb, T_Mapping mapper)
+    auto kernelSetup(T_Worker const& worker, T_ParBox const& particleBox, T_Mapping mapper)
     {
         Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
-        auto frame = pb.getLastFrame(superCellIdx);
+        auto frame = particleBox.getLastFrame(superCellIdx);
         auto forEach = makeForEachInSuperCell(worker, mapper);
         return std::make_tuple(frame, forEach);
     }
@@ -63,12 +63,12 @@ namespace nbody::particles::kernels
         // Passing the mapper at all is to utilise type deduction and not
         // fiddling around with template arguments too much.
         template<typename T_Worker, typename T_ParBox, typename T_Mapping>
-        void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
+        void operator()(T_Worker const& worker, T_ParBox particleBox, T_Mapping mapper) const
         {
             // CAUTION: This currently only works for a single super cell and
             // a single frame.
             // TODO: Generalise!
-            auto frame = createEmptyLastFrame(worker, pb, mapper);
+            auto frame = createEmptyLastFrame(worker, particleBox, mapper);
             auto forEachCellInSuperCell = makeForEachInSuperCell(worker, mapper);
             forEachCellInSuperCell(
                 [&frame](uint32_t const idx)
@@ -107,12 +107,12 @@ namespace nbody::particles::kernels
     struct KernelUpdateVelocities
     {
         template<typename T_Worker, typename T_ParBox, typename T_Mapping>
-        void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
+        void operator()(T_Worker const& worker, T_ParBox particleBox, T_Mapping mapper) const
         {
             // CAUTION: This currently only works for a single super cell and
             // a single frame.
             // TODO: Generalise!
-            auto [frame, forEachCellInSuperCell] = kernelSetup(worker, pb, mapper);
+            auto [frame, forEachCellInSuperCell] = kernelSetup(worker, particleBox, mapper);
             forEachCellInSuperCell([&frame](uint32_t const idx)
                                    { frame[idx][velocity_] = computeVelocity(frame[idx], frame); });
         }
@@ -121,12 +121,12 @@ namespace nbody::particles::kernels
     struct KernelUpdatePositions
     {
         template<typename T_Worker, typename T_ParBox, typename T_Mapping>
-        void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
+        void operator()(T_Worker const& worker, T_ParBox particleBox, T_Mapping mapper) const
         {
             // CAUTION: This currently only works for a single super cell and
             // a single frame.
             // TODO: Generalise!
-            auto [frame, forEachCellInSuperCell] = kernelSetup(worker, pb, mapper);
+            auto [frame, forEachCellInSuperCell] = kernelSetup(worker, particleBox, mapper);
             forEachCellInSuperCell([&frame](uint32_t const idx)
                                    { frame[idx][position_] += timestep * frame[idx][velocity_]; });
         }
