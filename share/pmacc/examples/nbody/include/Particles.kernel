@@ -25,6 +25,8 @@
 #include <pmacc/lockstep/lockstep.hpp>
 #include <pmacc/particles/Identifier.hpp>
 
+#include "pmacc/math/vector/compile-time/Vector.hpp"
+
 namespace nbody::particles::kernels
 {
     using namespace nbody::infrastructure;
@@ -75,15 +77,13 @@ namespace nbody::particles::kernels
                 [&frame](uint32_t const idx)
                 {
                     frame[idx][multiMask_] = 1;
-                    frame[idx][localCellIdx_] = idx;
+                    frame[idx][localCellIdx_] = 0;
                     frame[idx][mass_] = 1.;
-                    // TODO: This is a hack.
-                    frame[idx][position_].x()
-                        = static_cast<float>(pmacc::math::mapToND(Space{8, 8, 4}, static_cast<int>(idx))[0]);
-                    frame[idx][position_].y()
-                        = static_cast<float>(pmacc::math::mapToND(Space{8, 8, 4}, static_cast<int>(idx))[1]);
-                    frame[idx][position_].z()
-                        = static_cast<float>(pmacc::math::mapToND(Space{8, 8, 4}, static_cast<int>(idx))[2]);
+                    // all in first cell on the diagonal (this was the simplest non-trivial I could come up with)
+                    // TODO: Generalise! (In the sense of read this from cmdline or the like.)
+                    frame[idx][position_] = float3::create(
+                        static_cast<float>(idx)
+                        / static_cast<float>(pmacc::math::CT::volume<typename T_ParBox::SuperCellSize>::type::value));
                 });
             worker.sync();
         }
