@@ -1,0 +1,134 @@
+/* Copyright 2024 Julian Lenz
+ *
+ * This file is part of PMacc.
+ *
+ * PMacc is free software: you can redistribute it and/or modify
+ * it under the terms of either the GNU General Public License or
+ * the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * PMacc is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License and the GNU Lesser General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * and the GNU Lesser General Public License along with PMacc.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+
+#include "infrastructure.hpp"
+
+#include <pmacc/lockstep/lockstep.hpp>
+#include <pmacc/particles/Identifier.hpp>
+
+namespace nbody::particles::kernels
+{
+    using namespace nbody::infrastructure;
+    //    using nbody::infrastructure::Space;
+    //    using nbody::infrastructure::position_;
+    //    using nbody::infrastructure::velocity_;
+    //    using nbody::infrastructure::mass_;
+    //    using nbody::infrastructure::float3;
+    //    using nbody::infrastructure::epsilon;
+    //    using nbody::infrastructure::timestep;
+    //    using nbody::infrastructure::numSlots;
+
+    template<typename T_Worker, typename T_ParBox, typename T_Mapping>
+    auto createEmptyLastFrame(T_Worker const& worker, T_ParBox& pb, T_Mapping mapper)
+    {
+        Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
+        auto frame = pb.getEmptyFrame(worker);
+        pb.setAsLastFrame(worker, frame, superCellIdx);
+        return frame;
+    }
+    template<typename T_Worker, typename T_Mapping>
+    auto makeForEachInSuperCell(T_Worker const& worker, T_Mapping mapper)
+    {
+        constexpr uint32_t cellsPerSupercell = pmacc::math::CT::volume<typename T_Mapping::SuperCellSize>::type::value;
+        return pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
+    }
+
+    template<typename T_Worker, typename T_ParBox, typename T_Mapping>
+    auto kernelSetup(T_Worker const& worker, T_ParBox const& pb, T_Mapping mapper)
+    {
+        Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
+        auto frame = pb.getLastFrame(superCellIdx);
+        auto forEach = makeForEachInSuperCell(worker, mapper);
+        return std::make_tuple(frame, forEach);
+    }
+
+    struct KernelFillGridWithParticles
+    {
+        template<typename T_Worker, typename T_ParBox, typename T_Mapping>
+        void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
+        {
+            // CAUTION: This currently only works for a single super cell and
+            // a single frame.
+            // TODO: Generalise!
+            auto frame = createEmptyLastFrame(worker, pb, mapper);
+            auto forEachCellInSuperCell = makeForEachInSuperCell(worker, mapper);
+            forEachCellInSuperCell(
+                [&frame](uint32_t const idx)
+                {
+                    frame[idx][pmacc::multiMask_] = 1;
+                    frame[idx][pmacc::localCellIdx_] = idx;
+                    frame[idx][mass_] = 1.;
+                    // TODO: This is a hack.
+                    frame[idx][position_].x()
+                        = static_cast<float>(pmacc::math::mapToND(Space{8, 8, 4}, static_cast<int>(idx))[0]);
+                    frame[idx][position_].y()
+                        = static_cast<float>(pmacc::math::mapToND(Space{8, 8, 4}, static_cast<int>(idx))[1]);
+                    frame[idx][position_].z()
+                        = static_cast<float>(pmacc::math::mapToND(Space{8, 8, 4}, static_cast<int>(idx))[2]);
+                });
+            worker.sync();
+        }
+    };
+
+    template<typename T_Particle, typename T_Frame>
+    float3 computeVelocity(T_Particle const& particle, T_Frame const& frame)
+    {
+        auto acceleration = float3::create(0.);
+        // NOTE: Frames don't have (c)begin and (c)end, so we can't use a
+        // range-based for loop here.
+        for(uint32_t i = 0; i < numSlots; ++i)
+        {
+            auto const& other = frame[i]; // NOTE: Should be obtained directly from (auto const& other : frame)
+            auto difference = other[position_] - particle[position_];
+            auto denominator = sqrt(l2norm2(difference) + epsilon);
+            acceleration += other[mass_] * difference / (denominator * denominator * denominator);
+        }
+        return particle[velocity_] + acceleration * timestep;
+    }
+
+    struct KernelUpdateVelocities
+    {
+        template<typename T_Worker, typename T_ParBox, typename T_Mapping>
+        void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
+        {
+            // CAUTION: This currently only works for a single super cell and
+            // a single frame.
+            // TODO: Generalise!
+            auto [frame, forEachCellInSuperCell] = kernelSetup(worker, pb, mapper);
+            forEachCellInSuperCell([&frame](uint32_t const idx)
+                                   { frame[idx][velocity_] = computeVelocity(frame[idx], frame); });
+        }
+    };
+    struct KernelUpdatePositions
+    {
+        template<typename T_Worker, typename T_ParBox, typename T_Mapping>
+        void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
+        {
+            // CAUTION: This currently only works for a single super cell and
+            // a single frame.
+            // TODO: Generalise!
+            auto [frame, forEachCellInSuperCell] = kernelSetup(worker, pb, mapper);
+            forEachCellInSuperCell([&frame](uint32_t const idx)
+                                   { frame[idx][position_] += timestep * frame[idx][velocity_]; });
+        }
+    };
+} // namespace nbody::particles::kernels
