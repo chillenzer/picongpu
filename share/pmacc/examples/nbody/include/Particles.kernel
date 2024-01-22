@@ -42,7 +42,8 @@ namespace nbody::particles::kernels
     template<typename T_Worker, typename T_Mapping>
     auto makeForEachInSuperCell(T_Worker const& worker, T_Mapping mapper)
     {
-        constexpr uint32_t cellsPerSupercell = pmacc::math::CT::volume<typename T_Mapping::SuperCellSize>::type::value;
+        constexpr const uint32_t cellsPerSupercell
+            = pmacc::math::CT::volume<typename T_Mapping::SuperCellSize>::type::value;
         return pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
     }
 
@@ -97,8 +98,8 @@ namespace nbody::particles::kernels
         for(uint32_t i = 0; i < numSlots; ++i)
         {
             auto const& other = frame[i]; // NOTE: Should be obtained directly from (auto const& other : frame)
-            auto difference = other[position_] - particle[position_];
-            auto denominator = sqrt(l2norm2(difference) + epsilon);
+            auto const difference = other[position_] - particle[position_];
+            auto const denominator = sqrt(l2norm2(difference) + epsilon);
             acceleration += other[mass_] * difference / (denominator * denominator * denominator);
         }
         return particle[velocity_] + acceleration * timestep;
