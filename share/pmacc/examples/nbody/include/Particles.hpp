@@ -89,36 +89,6 @@ namespace nbody
                 worker.sync();
             }
         };
-        struct CheckInit
-        {
-            template<typename T_Worker, typename T_ParBox, typename T_Mapping>
-            void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
-            {
-                // CAUTION: This currently only works for a single super cell and
-                // a single frame.
-                // TODO: Generalise!
-                Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
-                auto frame = pb.getLastFrame(superCellIdx);
-                constexpr uint32_t cellsPerSupercell
-                    = pmacc::math::CT::volume<MappingDesc::SuperCellSize>::type::value;
-                auto forEachCellInSuperCell = pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
-                PMACC_SMEM(worker, correct, bool);
-                correct = true;
-                forEachCellInSuperCell(
-                    [&frame, &worker, &correct](uint32_t const idx)
-                    {
-                        cupla::atomicAnd(
-                            worker.getAcc(),
-                            &correct,
-                            frame[idx][pmacc::multiMask_] == 1 && frame[idx][pmacc::localCellIdx_] == idx
-                                && frame[idx][detail::position_] == float3::create(0.)
-                                && frame[idx][detail::velocity_] == float3::create(0.)
-                                && frame[idx][detail::mass_] == 1.,
-                            ::alpaka::hierarchy::Threads{});
-                    });
-                worker.sync();
-            }
-        };
 
         template<typename T_Particle, typename T_Frame>
         float3 computeVelocity(T_Particle const& particle, T_Frame const& frame)
@@ -208,8 +178,6 @@ namespace nbody
         void initPositions()
         {
             apply(detail::KernelFillGridWithParticles{});
-            this->fillAllGaps();
-            apply(detail::CheckInit{});
         }
 
         template<typename T_Kernel>
