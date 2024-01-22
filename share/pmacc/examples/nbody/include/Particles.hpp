@@ -77,6 +77,8 @@ namespace nbody::particles
             // do nothing
         }
 
+        // NOTE: Couldn't make these free functions because `cellDescription` is
+        // protected.
         void updateVelocities()
         {
             apply(kernels::KernelUpdateVelocities{});
