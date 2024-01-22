@@ -21,16 +21,19 @@
 #pragma once
 
 #include "DeviceHeap.hpp"
-#include "cupla/device/Atomic.hpp"
-#include "pmacc/math/vector/Vector.hpp"
-#include "pmacc/particles/Identifier.hpp"
+#include "pmacc/lockstep/WorkerCfg.hpp"
 
 #include <pmacc/Environment.hpp>
 #include <pmacc/identifier/value_identifier.hpp>
+#include <pmacc/mappings/kernel/AreaMapping.hpp>
 #include <pmacc/mappings/kernel/MappingDescription.hpp>
+#include <pmacc/math/vector/Vector.hpp>
 #include <pmacc/meta/String.hpp>
+#include <pmacc/particles/Identifier.hpp>
 #include <pmacc/particles/ParticleDescription.hpp>
 #include <pmacc/particles/ParticlesBase.hpp>
+
+#include <cupla/device/Atomic.hpp>
 
 namespace nbody
 {
@@ -174,10 +177,14 @@ namespace nbody
     // NOTE: This is only a class because ParticleBase has a protected constructor.
     struct Particles : public detail::SpecialisedParticlesBase
     {
+        pmacc::AreaMapping<pmacc::type::CORE + pmacc::type::BORDER, MappingDesc> const mapper;
+        pmacc::lockstep::MakeWorkerCfg_t<MappingDesc::SuperCellSize> const workerCfg{};
+
         // TODO: Actually write this, currently it just tries to pass everything
         // to the base
         template<typename... T>
         Particles(T... args) : detail::SpecialisedParticlesBase(args...)
+                             , mapper(this->cellDescription)
         {
             initPositions();
         };
@@ -190,28 +197,25 @@ namespace nbody
 
         void updateVelocities()
         {
-            auto const mapper = pmacc::makeAreaMapper<pmacc::type::CORE + pmacc::type::BORDER>(this->cellDescription);
-            auto workerCfg = pmacc::lockstep::makeWorkerCfg(MappingDesc::SuperCellSize{});
-            PMACC_LOCKSTEP_KERNEL(detail::KernelUpdateVelocities{}, workerCfg)
-            (mapper.getGridDim())(this->particlesBuffer->getDeviceParticleBox(), mapper);
+            apply(detail::KernelUpdateVelocities{});
         }
         void updatePositions()
         {
-            auto const mapper = pmacc::makeAreaMapper<pmacc::type::CORE + pmacc::type::BORDER>(this->cellDescription);
-            auto workerCfg = pmacc::lockstep::makeWorkerCfg(MappingDesc::SuperCellSize{});
-            PMACC_LOCKSTEP_KERNEL(detail::KernelUpdatePositions{}, workerCfg)
-            (mapper.getGridDim())(this->particlesBuffer->getDeviceParticleBox(), mapper);
+            apply(detail::KernelUpdatePositions{});
         }
 
     private:
         void initPositions()
         {
-            auto const mapper = pmacc::makeAreaMapper<pmacc::type::CORE + pmacc::type::BORDER>(this->cellDescription);
-            auto workerCfg = pmacc::lockstep::makeWorkerCfg(MappingDesc::SuperCellSize{});
-            PMACC_LOCKSTEP_KERNEL(detail::KernelFillGridWithParticles{}, workerCfg)
-            (mapper.getGridDim())(this->particlesBuffer->getDeviceParticleBox(), mapper);
+            apply(detail::KernelFillGridWithParticles{});
             this->fillAllGaps();
-            PMACC_LOCKSTEP_KERNEL(detail::CheckInit{}, workerCfg)
+            apply(detail::CheckInit{});
+        }
+
+        template<typename T_Kernel>
+        void apply(T_Kernel kernel)
+        {
+            PMACC_LOCKSTEP_KERNEL(kernel, workerCfg)
             (mapper.getGridDim())(this->particlesBuffer->getDeviceParticleBox(), mapper);
         }
     };
