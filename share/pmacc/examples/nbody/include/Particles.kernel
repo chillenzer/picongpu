@@ -57,6 +57,11 @@ namespace nbody::particles::kernels
 
     struct KernelFillGridWithParticles
     {
+        // Passing the particle box by value is fine because it's a shallow
+        // copy keeping the underlying buffers, etc., intact and consistent.
+        //
+        // Passing the mapper at all is to utilise type deduction and not
+        // fiddling around with template arguments too much.
         template<typename T_Worker, typename T_ParBox, typename T_Mapping>
         void operator()(T_Worker const& worker, T_ParBox pb, T_Mapping mapper) const
         {
@@ -112,6 +117,7 @@ namespace nbody::particles::kernels
                                    { frame[idx][velocity_] = computeVelocity(frame[idx], frame); });
         }
     };
+
     struct KernelUpdatePositions
     {
         template<typename T_Worker, typename T_ParBox, typename T_Mapping>
