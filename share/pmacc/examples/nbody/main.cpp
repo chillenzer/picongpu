@@ -28,9 +28,6 @@
 #include <pmacc/mpi/GatherSlice.hpp>
 #include <pmacc/traits/NumberOfExchanges.hpp>
 
-#include <memory>
-
-
 using Space = pmacc::DataSpace<DIM3>;
 
 namespace nbody
