@@ -28,14 +28,6 @@
 namespace nbody::particles::kernels
 {
     using namespace nbody::infrastructure;
-    //    using nbody::infrastructure::Space;
-    //    using nbody::infrastructure::position_;
-    //    using nbody::infrastructure::velocity_;
-    //    using nbody::infrastructure::mass_;
-    //    using nbody::infrastructure::float3;
-    //    using nbody::infrastructure::epsilon;
-    //    using nbody::infrastructure::timestep;
-    //    using nbody::infrastructure::numSlots;
 
     template<typename T_Worker, typename T_ParBox, typename T_Mapping>
     auto createEmptyLastFrame(T_Worker const& worker, T_ParBox& pb, T_Mapping mapper)

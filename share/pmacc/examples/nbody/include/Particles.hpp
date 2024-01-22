@@ -38,6 +38,7 @@
 namespace nbody::particles
 {
     using nbody::infrastructure::MappingDesc;
+
     namespace detail
     {
         using nbody::infrastructure::mass;
