@@ -28,6 +28,8 @@
 namespace nbody::particles::kernels
 {
     using namespace nbody::infrastructure;
+    using pmacc::localCellIdx_;
+    using pmacc::multiMask_;
 
     template<typename T_Worker, typename T_ParBox, typename T_Mapping>
     auto createEmptyLastFrame(T_Worker const& worker, T_ParBox& pb, T_Mapping mapper)
@@ -66,8 +68,8 @@ namespace nbody::particles::kernels
             forEachCellInSuperCell(
                 [&frame](uint32_t const idx)
                 {
-                    frame[idx][pmacc::multiMask_] = 1;
-                    frame[idx][pmacc::localCellIdx_] = idx;
+                    frame[idx][multiMask_] = 1;
+                    frame[idx][localCellIdx_] = idx;
                     frame[idx][mass_] = 1.;
                     // TODO: This is a hack.
                     frame[idx][position_].x()
