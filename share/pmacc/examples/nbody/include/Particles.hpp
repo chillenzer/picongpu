@@ -58,6 +58,32 @@ namespace nbody
 
         using SpecialisedParticlesBase = pmacc::ParticlesBase<TrivialParticleDescription, MappingDesc, DeviceHeap>;
 
+
+        template<typename T_Worker, typename T_ParBox, typename T_Mapping>
+        auto createEmptyLastFrame(T_Worker const& worker, T_ParBox& pb, T_Mapping mapper)
+        {
+            Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
+            auto frame = pb.getEmptyFrame(worker);
+            pb.setAsLastFrame(worker, frame, superCellIdx);
+            return frame;
+        }
+        template<typename T_Worker, typename T_Mapping>
+        auto makeForEachInSuperCell(T_Worker const& worker, T_Mapping mapper)
+        {
+            constexpr uint32_t cellsPerSupercell
+                = pmacc::math::CT::volume<typename T_Mapping::SuperCellSize>::type::value;
+            return pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
+        }
+
+        template<typename T_Worker, typename T_ParBox, typename T_Mapping>
+        auto kernelSetup(T_Worker const& worker, T_ParBox const& pb, T_Mapping mapper)
+        {
+            Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
+            auto frame = pb.getLastFrame(superCellIdx);
+            auto forEach = makeForEachInSuperCell(worker, mapper);
+            return std::make_tuple(frame, forEach);
+        }
+
         struct KernelFillGridWithParticles
         {
             template<typename T_Worker, typename T_ParBox, typename T_Mapping>
@@ -66,12 +92,8 @@ namespace nbody
                 // CAUTION: This currently only works for a single super cell and
                 // a single frame.
                 // TODO: Generalise!
-                Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
-                auto frame = pb.getEmptyFrame(worker);
-                pb.setAsLastFrame(worker, frame, superCellIdx);
-                constexpr uint32_t cellsPerSupercell
-                    = pmacc::math::CT::volume<MappingDesc::SuperCellSize>::type::value;
-                auto forEachCellInSuperCell = pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
+                auto frame = createEmptyLastFrame(worker, pb, mapper);
+                auto forEachCellInSuperCell = makeForEachInSuperCell(worker, mapper);
                 forEachCellInSuperCell(
                     [&frame](uint32_t const idx)
                     {
@@ -98,7 +120,7 @@ namespace nbody
             // range-based for loop here.
             for(uint32_t i = 0; i < numSlots; ++i)
             {
-                const auto& other = frame[i];
+                auto const& other = frame[i]; // NOTE: Should be obtained directly from (auto const& other : frame)
                 auto difference = other[position_] - particle[position_];
                 auto denominator = sqrt(l2norm2(difference) + epsilon);
                 acceleration += other[mass_] * difference / (denominator * denominator * denominator);
@@ -114,14 +136,9 @@ namespace nbody
                 // CAUTION: This currently only works for a single super cell and
                 // a single frame.
                 // TODO: Generalise!
-                Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
-                auto frame = pb.getLastFrame(superCellIdx);
-                constexpr uint32_t cellsPerSupercell
-                    = pmacc::math::CT::volume<MappingDesc::SuperCellSize>::type::value;
-                auto forEachCellInSuperCell = pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
+                auto [frame, forEachCellInSuperCell] = kernelSetup(worker, pb, mapper);
                 forEachCellInSuperCell([&frame](uint32_t const idx)
                                        { frame[idx][detail::velocity_] = computeVelocity(frame[idx], frame); });
-                worker.sync();
             }
         };
         struct KernelUpdatePositions
@@ -132,14 +149,9 @@ namespace nbody
                 // CAUTION: This currently only works for a single super cell and
                 // a single frame.
                 // TODO: Generalise!
-                Space const superCellIdx(mapper.getSuperCellIndex(Space(cupla::blockIdx(worker.getAcc()))));
-                auto frame = pb.getLastFrame(superCellIdx);
-                constexpr uint32_t cellsPerSupercell
-                    = pmacc::math::CT::volume<MappingDesc::SuperCellSize>::type::value;
-                auto forEachCellInSuperCell = pmacc::lockstep::makeForEach<cellsPerSupercell>(worker);
+                auto [frame, forEachCellInSuperCell] = kernelSetup(worker, pb, mapper);
                 forEachCellInSuperCell([&frame](uint32_t const idx)
                                        { frame[idx][detail::position_] += timestep * frame[idx][detail::velocity_]; });
-                worker.sync();
             }
         };
     } // namespace detail
