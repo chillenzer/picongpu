@@ -18,6 +18,8 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 #include <picongpu/traits/GetMetadata.hpp>
 
 using picongpu::traits::getMetadata;
@@ -31,7 +33,8 @@ TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
 {
     SECTION("RT")
     {
-        SomethingWithRTInfo obj{42};
+        auto i = GENERATE(range(0, 3));
+        SomethingWithRTInfo obj{i};
         CHECK(getMetadata(obj)["info"] == obj.info);
     }
 }
