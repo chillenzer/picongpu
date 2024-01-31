@@ -17,13 +17,10 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <string>
-
 #include <catch2/catch_test_macros.hpp>
 #include <picongpu/traits/GetMetadata.hpp>
 
 using picongpu::traits::getMetadata;
-using std::to_string;
 
 struct SomethingWithRTInfo
 {
@@ -32,6 +29,9 @@ struct SomethingWithRTInfo
 
 TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
 {
-    SomethingWithRTInfo obj{42};
-    CHECK(getMetadata(obj)["info"] == to_string(obj.info));
+    SECTION("RT")
+    {
+        SomethingWithRTInfo obj{42};
+        CHECK(getMetadata(obj)["info"] == obj.info);
+    }
 }

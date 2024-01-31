@@ -17,8 +17,6 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <string>
-
 // TODO: This is a nasty hack because I somehow couldn't get the include to work. Revise later!
 #include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
 
@@ -29,6 +27,6 @@ namespace picongpu::traits
     template<typename T>
     json getMetadata(T const& obj)
     {
-        return {{"info", "42"}};
+        return {{"info", 42}};
     }
 } // namespace picongpu::traits
