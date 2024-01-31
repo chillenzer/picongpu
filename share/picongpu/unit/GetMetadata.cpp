@@ -60,6 +60,23 @@ struct picongpu::traits::GetMetadata<SomethingWithMoreRTInfo>
     }
 };
 
+struct SomethingWithUnusedRTInfo
+{
+    int info = 0;
+    int not_into_json = -1;
+};
+
+template<>
+struct picongpu::traits::GetMetadata<SomethingWithUnusedRTInfo>
+{
+    SomethingWithUnusedRTInfo const obj;
+    Json json()
+    {
+        // does not use the `not_into_json` attribute at all
+        return {{"info", obj.info}};
+    }
+};
+
 TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
 {
     SECTION("RT")
@@ -82,6 +99,13 @@ TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
             SomethingWithMoreRTInfo obj{42, 'x'};
             CHECK(getMetadata(obj)["info"] == obj.info);
             CHECK(getMetadata(obj)["character"] == obj.character);
+        }
+
+        SECTION("Unused information")
+        {
+            SomethingWithUnusedRTInfo obj{42, -42};
+            CHECK(getMetadata(obj)["info"] == obj.info);
+            CHECK(getMetadata(obj)["not_into_json"] == nullptr);
         }
     }
 }
