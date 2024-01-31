@@ -29,12 +29,27 @@ struct SomethingWithRTInfo
     int info = 0;
 };
 
+struct SomethingWithMoreRTInfo
+{
+    int info = 0;
+    char character = 'j';
+};
+
 TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
 {
     SECTION("RT")
     {
         auto i = GENERATE(range(0, 3));
-        SomethingWithRTInfo obj{i};
-        CHECK(getMetadata(obj)["info"] == obj.info);
+        SECTION("Single info")
+        {
+            SomethingWithRTInfo obj{i};
+            CHECK(getMetadata(obj)["info"] == obj.info);
+        }
+        SECTION("Multiple info")
+        {
+            SomethingWithMoreRTInfo obj{i, 'x'};
+            CHECK(getMetadata(obj)["info"] == obj.info);
+            CHECK(getMetadata(obj)["character"] == obj.character);
+        }
     }
 }

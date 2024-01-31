@@ -27,6 +27,6 @@ namespace picongpu::traits
     template<typename T>
     json getMetadata(T const& obj)
     {
-        return {{"info", obj.info}};
+        return {{"info", obj.info}, {"character", 'x'}};
     }
 } // namespace picongpu::traits
