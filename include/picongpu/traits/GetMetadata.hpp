@@ -18,15 +18,16 @@
  */
 
 #include <string>
-#include <unordered_map>
+
+// TODO: This is a nasty hack because I somehow couldn't get the include to work. Revise later!
+#include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
 
 namespace picongpu::traits
 {
-    using std::string;
-    using std::unordered_map;
+    using json = nlohmann::json;
 
     template<typename T>
-    unordered_map<string, string> getMetadata(T const& obj)
+    json getMetadata(T const& obj)
     {
         return {{"info", "42"}};
     }
