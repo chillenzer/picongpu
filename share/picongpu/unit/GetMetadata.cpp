@@ -17,16 +17,31 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_range.hpp>
 #include <picongpu/traits/GetMetadata.hpp>
-
+using Json = nlohmann::json;
 using picongpu::traits::getMetadata;
+
+struct EmptyStruct
+{
+};
 
 struct SomethingWithRTInfo
 {
     int info = 0;
+};
+
+template<>
+struct picongpu::traits::GetMetadata<SomethingWithRTInfo>
+{
+    SomethingWithRTInfo const obj;
+    Json json()
+    {
+        return {{"info", obj.info}};
+    }
 };
 
 struct SomethingWithMoreRTInfo
@@ -35,10 +50,26 @@ struct SomethingWithMoreRTInfo
     char character = 'j';
 };
 
+template<>
+struct picongpu::traits::GetMetadata<SomethingWithMoreRTInfo>
+{
+    SomethingWithMoreRTInfo const obj;
+    Json json()
+    {
+        return {{"info", obj.info}, {"character", obj.character}};
+    }
+};
+
 TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
 {
     SECTION("RT")
     {
+        SECTION("EmptyStruct")
+        {
+            EmptyStruct obj{};
+            CHECK(getMetadata(obj).size() == 0u);
+        }
+
         auto i = GENERATE(range(0, 3));
         SECTION("Single info")
         {

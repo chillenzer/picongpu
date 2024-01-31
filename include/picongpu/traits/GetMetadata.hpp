@@ -22,11 +22,21 @@
 
 namespace picongpu::traits
 {
-    using json = nlohmann::json;
+    using Json = nlohmann::json;
 
     template<typename T>
-    json getMetadata(T const& obj)
+    struct GetMetadata
     {
-        return {{"info", obj.info}, {"character", 'x'}};
+        T const obj;
+        Json json()
+        {
+            return {};
+        }
+    };
+
+    template<typename T>
+    Json getMetadata(T const& obj)
+    {
+        return GetMetadata<T>{obj}.json();
     }
 } // namespace picongpu::traits
