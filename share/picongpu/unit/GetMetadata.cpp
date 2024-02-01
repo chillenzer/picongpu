@@ -40,7 +40,7 @@ template<>
 struct picongpu::traits::GetMetadata<SomethingWithRTInfo>
 {
     SomethingWithRTInfo const obj;
-    Json json()
+    Json json() const
     {
         return {{"info", obj.info}};
     }
@@ -56,7 +56,7 @@ template<>
 struct picongpu::traits::GetMetadata<SomethingWithMoreRTInfo>
 {
     SomethingWithMoreRTInfo const obj;
-    Json json()
+    Json json() const
     {
         return {{"info", obj.info}, {"character", obj.character}};
     }
@@ -72,7 +72,7 @@ template<>
 struct picongpu::traits::GetMetadata<SomethingWithUnusedRTInfo>
 {
     SomethingWithUnusedRTInfo const obj;
-    Json json()
+    Json json() const
     {
         // does not use the `not_into_json` attribute at all
         return {{"info", obj.info}};

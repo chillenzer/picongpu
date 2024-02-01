@@ -35,7 +35,7 @@ namespace picongpu::traits
         // for us while abiding by the rule of zero.
         T const obj;
 
-        Json json()
+        Json json() const
         {
             return {};
         }
