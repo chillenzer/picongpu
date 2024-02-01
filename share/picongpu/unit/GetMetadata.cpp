@@ -152,48 +152,48 @@ TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
     {
         SECTION("EmptyStruct")
         {
-            EmptyStruct obj{};
+            EmptyStruct const obj{};
             CHECK(getMetadata(obj).size() == 0u);
         }
 
         SECTION("Single info")
         {
-            auto i = GENERATE(range(0, 3));
-            SomethingWithRTInfo obj{i};
+            auto const i = GENERATE(range(0, 3));
+            SomethingWithRTInfo const obj{i};
             CHECK(getMetadata(obj)["info"] == obj.info);
         }
 
         SECTION("Multiple info")
         {
-            SomethingWithMoreRTInfo obj{42, 'x'};
+            SomethingWithMoreRTInfo const obj{42, 'x'};
             CHECK(getMetadata(obj)["info"] == obj.info);
             CHECK(getMetadata(obj)["character"] == obj.character);
         }
 
         SECTION("Unused information")
         {
-            SomethingWithUnusedRTInfo obj{42, -42};
+            SomethingWithUnusedRTInfo const obj{42, -42};
             CHECK(getMetadata(obj)["info"] == obj.info);
             CHECK(getMetadata(obj)["not_into_json"] == nullptr);
         }
 
         SECTION("Info from function")
         {
-            auto i = GENERATE(range(0, 3));
-            SomethingWithRTInfoFromFunction obj{i};
+            auto const i = GENERATE(range(0, 3));
+            SomethingWithRTInfoFromFunction const obj{i};
             CHECK(getMetadata(obj)["infoForJson"] == obj.info * 42);
         }
     }
 
     SECTION("CT")
     {
-        SomethingWithCTInfo obj{};
+        SomethingWithCTInfo const obj{};
         CHECK(getMetadata(obj)["info"] == decltype(obj)::Parameters::info);
     }
 
     SECTION("Mixed CT and RT")
     {
-        SomethingWithCTAndRTInfo obj{};
+        SomethingWithCTAndRTInfo const obj{};
         CHECK(getMetadata(obj)["infoCT"] == decltype(obj)::Parameters::info);
         CHECK(getMetadata(obj)["infoRT"] == obj.infoRT);
     }
@@ -203,13 +203,15 @@ TEST_CASE("unit::mergeMetadata", "[mergeMetadata test]")
 {
     SECTION("Empty list")
     {
-        vector<Json> empty{};
+        vector<Json> const empty = {};
         CHECK(mergeMetadata(empty) == Json{});
     }
 
     SECTION("Copies single element")
     {
-        Json const content{{"a", 1}};
+        // apparently braced construction is flawed:
+        // https://json.nlohmann.me/home/faq/#brace-initialization-yields-arrays
+        Json const content = {"a", 1};
         vector<Json> const singleElement{content};
         CHECK(mergeMetadata(singleElement) == content);
     }
