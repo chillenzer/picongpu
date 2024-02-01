@@ -27,7 +27,14 @@ namespace picongpu::traits
     template<typename T>
     struct GetMetadata
     {
+        // `obj` is not used in the default implementation
+        // but we want the compiler to auto-generate the constructor
+        //
+        //    GetMetadata(T const& obj) = default;
+        //
+        // for us while abiding by the rule of zero.
         T const obj;
+
         Json json()
         {
             return {};

@@ -17,11 +17,13 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
+// TODO: This is a nasty hack because I somehow couldn't get the include to work. Revise later!
 #include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_range.hpp>
 #include <picongpu/traits/GetMetadata.hpp>
+
 using Json = nlohmann::json;
 using picongpu::traits::getMetadata;
 
