@@ -17,9 +17,9 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-// TODO: This is a nasty hack because I somehow couldn't get the include to work. Revise later!
 #include <vector>
 
+// TODO: This is a nasty hack because I somehow couldn't get the include to work. Revise later!
 #include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -110,6 +110,7 @@ struct SomeParameters
 {
     static constexpr int info = 0;
 };
+
 // Examples of compile time information
 struct SomethingWithCTInfo
 {
@@ -137,7 +138,6 @@ struct SomethingWithCTAndRTInfo
 template<>
 struct picongpu::traits::GetMetadata<SomethingWithCTAndRTInfo>
 {
-    // isn't used but has to comply with the interface
     SomethingWithCTAndRTInfo obj;
 
     Json json() const
