@@ -23,6 +23,7 @@
 namespace picongpu::traits
 {
     using Json = nlohmann::json;
+    using std::vector;
 
     template<typename T>
     struct GetMetadata
@@ -45,5 +46,10 @@ namespace picongpu::traits
     Json getMetadata(T const& obj)
     {
         return GetMetadata<T>{obj}.json();
+    }
+
+    Json mergeMetadata(vector<Json> const& metadata)
+    {
+        return {};
     }
 } // namespace picongpu::traits

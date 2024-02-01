@@ -18,6 +18,8 @@
  */
 
 // TODO: This is a nasty hack because I somehow couldn't get the include to work. Revise later!
+#include <vector>
+
 #include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -26,6 +28,8 @@
 
 using Json = nlohmann::json;
 using picongpu::traits::getMetadata;
+using picongpu::traits::mergeMetadata;
+using std::vector;
 
 // The following are all different examples of what classes the `GetMetadata` trait can work with.
 
@@ -192,5 +196,14 @@ TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
         SomethingWithCTAndRTInfo obj{};
         CHECK(getMetadata(obj)["infoCT"] == decltype(obj)::Parameters::info);
         CHECK(getMetadata(obj)["infoRT"] == obj.infoRT);
+    }
+}
+
+TEST_CASE("unit::mergeMetadata", "[mergeMetadata test]")
+{
+    SECTION("Empty list")
+    {
+        vector<Json> empty{};
+        CHECK(mergeMetadata(empty) == Json{});
     }
 }
