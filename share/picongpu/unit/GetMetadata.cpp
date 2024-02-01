@@ -79,6 +79,26 @@ struct picongpu::traits::GetMetadata<SomethingWithUnusedRTInfo>
     }
 };
 
+struct SomethingWithRTInfoFromFunction
+{
+    int info = 0;
+
+    int infoForJson() const
+    {
+        return info * 42;
+    }
+};
+
+template<>
+struct picongpu::traits::GetMetadata<SomethingWithRTInfoFromFunction>
+{
+    SomethingWithRTInfoFromFunction const obj;
+    Json json() const
+    {
+        return {{"infoForJson", obj.infoForJson()}};
+    }
+};
+
 TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
 {
     SECTION("RT")
@@ -108,6 +128,13 @@ TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
             SomethingWithUnusedRTInfo obj{42, -42};
             CHECK(getMetadata(obj)["info"] == obj.info);
             CHECK(getMetadata(obj)["not_into_json"] == nullptr);
+        }
+
+        SECTION("Info from function")
+        {
+            auto i = GENERATE(range(0, 3));
+            SomethingWithRTInfoFromFunction obj{i};
+            CHECK(getMetadata(obj)["infoForJson"] == obj.info * 42);
         }
     }
 }
