@@ -50,6 +50,11 @@ namespace picongpu::traits
 
     Json mergeMetadata(vector<Json> const& metadata)
     {
-        return {};
+        Json result = {};
+        for(auto const& entry : metadata)
+        {
+            result.merge_patch(entry);
+        }
+        return result;
     }
 } // namespace picongpu::traits

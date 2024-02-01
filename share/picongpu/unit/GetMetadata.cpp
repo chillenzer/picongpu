@@ -206,4 +206,20 @@ TEST_CASE("unit::mergeMetadata", "[mergeMetadata test]")
         vector<Json> empty{};
         CHECK(mergeMetadata(empty) == Json{});
     }
+
+    SECTION("Copies single element")
+    {
+        Json const content{{"a", 1}};
+        vector<Json> const singleElement{content};
+        CHECK(mergeMetadata(singleElement) == content);
+    }
+
+    SECTION("Handles two elements")
+    {
+        Json const content1 = {"a", 1};
+        Json const content2 = {"b", 2};
+        Json const expected = {{"a", 1}, {"b", 2}};
+        vector<Json> const twoElements{{content1, content2}};
+        CHECK(mergeMetadata(twoElements) == expected);
+    }
 }
