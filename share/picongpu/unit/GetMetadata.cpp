@@ -211,17 +211,17 @@ TEST_CASE("unit::mergeMetadata", "[mergeMetadata test]")
     {
         // apparently braced construction is flawed:
         // https://json.nlohmann.me/home/faq/#brace-initialization-yields-arrays
-        Json const content = {"a", 1};
+        Json const content = {{"a", 1}};
         vector<Json> const singleElement{content};
         CHECK(mergeMetadata(singleElement) == content);
     }
 
     SECTION("Handles two elements")
     {
-        Json const content1 = {"a", 1};
-        Json const content2 = {"b", 2};
+        Json const content1 = {{"a", 1}};
+        Json const content2 = {{"b", 2}};
         Json const expected = {{"a", 1}, {"b", 2}};
-        vector<Json> const twoElements{{content1, content2}};
+        vector<Json> const twoElements({content1, content2});
         CHECK(mergeMetadata(twoElements) == expected);
     }
 }
