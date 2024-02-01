@@ -27,10 +27,13 @@
 using Json = nlohmann::json;
 using picongpu::traits::getMetadata;
 
+// The following are all different examples of what classes the `GetMetadata` trait can work with.
+
 struct EmptyStruct
 {
 };
 
+// First examples of runtime information
 struct SomethingWithRTInfo
 {
     int info = 0;
@@ -99,6 +102,46 @@ struct picongpu::traits::GetMetadata<SomethingWithRTInfoFromFunction>
     }
 };
 
+struct SomeParameters
+{
+    static constexpr int info = 0;
+};
+// Examples of compile time information
+struct SomethingWithCTInfo
+{
+    using Parameters = SomeParameters;
+};
+
+template<>
+struct picongpu::traits::GetMetadata<SomethingWithCTInfo>
+{
+    // isn't used but has to comply with the interface
+    SomethingWithCTInfo obj;
+
+    Json json() const
+    {
+        return {{"info", SomethingWithCTInfo::Parameters::info}};
+    }
+};
+
+struct SomethingWithCTAndRTInfo
+{
+    using Parameters = SomeParameters;
+    int infoRT = -42;
+};
+
+template<>
+struct picongpu::traits::GetMetadata<SomethingWithCTAndRTInfo>
+{
+    // isn't used but has to comply with the interface
+    SomethingWithCTAndRTInfo obj;
+
+    Json json() const
+    {
+        return {{"infoCT", SomethingWithCTAndRTInfo::Parameters::info}, {"infoRT", obj.infoRT}};
+    }
+};
+
 TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
 {
     SECTION("RT")
@@ -136,5 +179,18 @@ TEST_CASE("unit::GetMetadata", "[GetMetadata test]")
             SomethingWithRTInfoFromFunction obj{i};
             CHECK(getMetadata(obj)["infoForJson"] == obj.info * 42);
         }
+    }
+
+    SECTION("CT")
+    {
+        SomethingWithCTInfo obj{};
+        CHECK(getMetadata(obj)["info"] == decltype(obj)::Parameters::info);
+    }
+
+    SECTION("Mixed CT and RT")
+    {
+        SomethingWithCTAndRTInfo obj{};
+        CHECK(getMetadata(obj)["infoCT"] == decltype(obj)::Parameters::info);
+        CHECK(getMetadata(obj)["infoRT"] == obj.infoRT);
     }
 }
