@@ -34,7 +34,7 @@ namespace picongpu::traits
         //    GetMetadata(T const& obj) = default;
         //
         // for us while abiding by the rule of zero.
-        T const obj;
+        T const& obj;
 
         Json json() const
         {
