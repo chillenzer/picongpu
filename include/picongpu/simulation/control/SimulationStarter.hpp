@@ -22,6 +22,7 @@
 #include "picongpu/simulation_defines.hpp"
 
 #include "picongpu/ArgsParser.hpp"
+#include "picongpu/fields/MaxwellSolver/Yee/Yee.def"
 #include "picongpu/simulation/control/ISimulationStarter.hpp"
 #include "pmacc/pluginSystem/IPlugin.hpp"
 
@@ -45,6 +46,26 @@ using std::string;
 using std::string_view;
 using std::vector;
 namespace po = boost::program_options;
+
+template<>
+struct picongpu::traits::GetMetadata<picongpu::Simulation>
+{
+    Simulation const& obj;
+    picongpu::traits::Json json()
+    {
+        return {{"name", "Simulation"}, {"solver", picongpu::traits::getMetadata(*obj.myFieldSolver)}};
+    }
+};
+
+template<>
+struct picongpu::traits::GetMetadata<picongpu::fields::maxwellSolver::Yee>
+{
+    picongpu::fields::maxwellSolver::Yee const& obj;
+    picongpu::traits::Json json()
+    {
+        return {{"name", "Yee"}};
+    }
+};
 
 struct MetadataClass : pmacc::IPlugin
 {
@@ -127,8 +148,11 @@ namespace picongpu
             pluginConnector.loadPlugins();
             log<picLog::SIMULATION_STATE>("Startup");
             simulationClass->setInitController(initClass.get());
-            if(metadataClass->dumpMetadata != "")
+            if(metadataClass->metadataFile != "")
+            {
+                metadataClass->add(*simulationClass);
                 metadataClass->dumpTo("SomeDefaultNameThatWeShouldDecideUponLater.json");
+            }
             else
                 simulationClass->startSimulation();
         }

@@ -604,7 +604,10 @@ namespace picongpu
     protected:
         std::shared_ptr<DeviceHeap> deviceHeap;
 
+    public: // short hack to have something interesting for metadata dumping, TODO: Find better solution here.
         std::shared_ptr<fields::Solver> myFieldSolver;
+
+    protected:
         std::shared_ptr<simulation::stage::CurrentInterpolationAndAdditionToEMF> currentInterpolationAndAdditionToEMF;
         std::shared_ptr<simulation::stage::CurrentBackground> currentBackground;
 
