@@ -34,7 +34,6 @@
 #include <boost/program_options/options_description.hpp>
 
 #include <fstream>
-#include <iostream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -49,7 +48,7 @@ namespace po = boost::program_options;
 
 struct MetadataClass : pmacc::IPlugin
 {
-    bool dumpMetadata = false;
+    string metadataFile{};
     vector<picongpu::traits::Json> metadata{};
 
     template<typename T>
@@ -67,13 +66,13 @@ struct MetadataClass : pmacc::IPlugin
     {
         desc.add_options()(
             "dump-metadata",
-            po::value<bool>(&dumpMetadata)->default_value(false),
+            po::value<string>(&metadataFile),
             "If given, dump metadata to file instead of running simulation.");
     }
 
     string pluginGetName() const override
     {
-        return "MetadataClass";
+        return "Metadata";
     }
 
     void checkpoint(uint32_t, const std::string) override
@@ -128,7 +127,7 @@ namespace picongpu
             pluginConnector.loadPlugins();
             log<picLog::SIMULATION_STATE>("Startup");
             simulationClass->setInitController(initClass.get());
-            if(metadataClass->dumpMetadata)
+            if(metadataClass->dumpMetadata != "")
                 metadataClass->dumpTo("SomeDefaultNameThatWeShouldDecideUponLater.json");
             else
                 simulationClass->startSimulation();
@@ -160,7 +159,7 @@ namespace picongpu
             ap.addOptions(pluginDesc);
 
             po::options_description metadataDesc(metadataClass->pluginGetName());
-            metadataClass->pluginRegisterHelp(pluginDesc);
+            metadataClass->pluginRegisterHelp(metadataDesc);
             ap.addOptions(metadataDesc);
 
             // setup all boost::program_options and add to ArgsParser
@@ -179,7 +178,6 @@ namespace picongpu
         void pluginLoad() override
         {
             metadataClass->load();
-            metadataClass->add(picongpu::traits::Json({"a", 1}));
             simulationClass->load();
             mappingDesc = simulationClass->getMappingDescription();
             pluginClass->setMappingDescription(mappingDesc);
