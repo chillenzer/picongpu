@@ -23,6 +23,7 @@
 
 #include "picongpu/ArgsParser.hpp"
 #include "picongpu/simulation/control/ISimulationStarter.hpp"
+#include "pmacc/pluginSystem/IPlugin.hpp"
 
 #include <pmacc/dimensions/DataSpace.hpp>
 #include <pmacc/dimensions/GridLayout.hpp>
@@ -32,7 +33,61 @@
 
 #include <boost/program_options/options_description.hpp>
 
+#include <fstream>
 #include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <picongpu/traits/GetMetadata.hpp>
+
+using std::ofstream;
+using std::string;
+using std::string_view;
+using std::vector;
+namespace po = boost::program_options;
+
+struct MetadataClass : pmacc::IPlugin
+{
+    bool dumpMetadata = false;
+    vector<picongpu::traits::Json> metadata{};
+
+    template<typename T>
+    void add(T const& obj)
+    {
+        metadata.push_back(picongpu::traits::getMetadata(obj));
+    }
+
+    void dumpTo(string const& filename) const
+    {
+        ofstream(filename) << picongpu::traits::mergeMetadata(metadata);
+    }
+
+    void pluginRegisterHelp(po::options_description& desc) override
+    {
+        desc.add_options()(
+            "dump-metadata",
+            po::value<bool>(&dumpMetadata)->default_value(false),
+            "If given, dump metadata to file instead of running simulation.");
+    }
+
+    string pluginGetName() const override
+    {
+        return "MetadataClass";
+    }
+
+    void checkpoint(uint32_t, const std::string) override
+    {
+    }
+
+    void restart(uint32_t, const std::string) override
+    {
+    }
+
+    void notify(uint32_t) override
+    {
+    }
+};
 
 namespace picongpu
 {
@@ -47,6 +102,7 @@ namespace picongpu
         std::unique_ptr<SimulationClass> simulationClass;
         std::unique_ptr<InitClass> initClass;
         std::unique_ptr<PluginClass> pluginClass;
+        std::unique_ptr<MetadataClass> metadataClass;
 
 
         MappingDesc* mappingDesc{nullptr};
@@ -58,6 +114,7 @@ namespace picongpu
             initClass = std::make_unique<InitClass>();
             simulationClass->setInitController(initClass.get());
             pluginClass = std::make_unique<PluginClass>();
+            metadataClass = std::make_unique<MetadataClass>();
         }
 
         std::string pluginGetName() const override
@@ -71,7 +128,10 @@ namespace picongpu
             pluginConnector.loadPlugins();
             log<picLog::SIMULATION_STATE>("Startup");
             simulationClass->setInitController(initClass.get());
-            simulationClass->startSimulation();
+            if(metadataClass->dumpMetadata)
+                metadataClass->dumpTo("SomeDefaultNameThatWeShouldDecideUponLater.json");
+            else
+                simulationClass->startSimulation();
         }
 
         void pluginRegisterHelp(po::options_description&) override
@@ -99,6 +159,10 @@ namespace picongpu
             pluginClass->pluginRegisterHelp(pluginDesc);
             ap.addOptions(pluginDesc);
 
+            po::options_description metadataDesc(metadataClass->pluginGetName());
+            metadataClass->pluginRegisterHelp(pluginDesc);
+            ap.addOptions(metadataDesc);
+
             // setup all boost::program_options and add to ArgsParser
             BoostOptionsList options = pluginConnector.registerHelp();
 
@@ -114,6 +178,8 @@ namespace picongpu
     protected:
         void pluginLoad() override
         {
+            metadataClass->load();
+            metadataClass->add(picongpu::traits::Json({"a", 1}));
             simulationClass->load();
             mappingDesc = simulationClass->getMappingDescription();
             pluginClass->setMappingDescription(mappingDesc);
@@ -127,6 +193,7 @@ namespace picongpu
             initClass->unload();
             pluginClass->unload();
             simulationClass->unload();
+            metadataClass->unload();
         }
 
     private:
