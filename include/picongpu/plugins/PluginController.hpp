@@ -194,9 +194,14 @@ namespace picongpu
         }
 
     public:
-        json metadata() const
+        json metadata() const override
         {
-            return {{"PluginController", {{"doing", "something cool!"}}}};
+            json result = json::object();
+            for(auto const& plugin : plugins)
+            {
+                result[pluginGetName()][plugin->pluginGetName()] = plugin->metadata();
+            }
+            return result;
         }
 
         PluginController()

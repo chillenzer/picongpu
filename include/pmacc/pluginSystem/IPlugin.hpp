@@ -29,9 +29,13 @@
 #include <stdexcept>
 #include <string>
 
+// TODO: This is a hack.
+#include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
+
 namespace pmacc
 {
     namespace po = boost::program_options;
+    using nlohmann::json;
 
     /*
      * Exception for plugin or plugin-management related errors.
@@ -139,6 +143,11 @@ namespace pmacc
         void setLastCheckpoint(uint32_t currentStep)
         {
             lastCheckpoint = currentStep;
+        }
+
+        virtual json metadata() const
+        {
+            return json::object();
         }
 
     protected:

@@ -24,7 +24,6 @@
 
 #include <pmacc/pluginSystem/IPlugin.hpp>
 
-
 namespace picongpu
 {
     using namespace pmacc;
