@@ -103,7 +103,7 @@ namespace picongpu
             pluginConnector.loadPlugins();
             log<picLog::SIMULATION_STATE>("Startup");
             simulationClass->setInitController(initClass.get());
-            if(dumpMetadata)
+            if(filenameMetadata != "")
             {
                 dump(
                     merge({simulationClass->metadata(), mappingDesc->metadata(), pluginClass->metadata()}),
@@ -137,6 +137,15 @@ namespace picongpu
             po::options_description pluginDesc(pluginClass->pluginGetName());
             pluginClass->pluginRegisterHelp(pluginDesc);
             ap.addOptions(pluginDesc);
+
+            po::options_description metadataDesc("Metadata");
+            metadataDesc.add_options()(
+                "dump-metadata",
+                po::value<path>(&filenameMetadata)
+                    ->implicit_value("SomeoneElseShouldDecideAboutAGoodDefaultHere.json")
+                    ->default_value(""),
+                "Dump metadata in json format to a file (optionally specified).");
+            ap.addOptions(metadataDesc);
 
             // setup all boost::program_options and add to ArgsParser
             BoostOptionsList options = pluginConnector.registerHelp();
@@ -179,7 +188,6 @@ namespace picongpu
             std::cout << std::endl;
         }
 
-        bool dumpMetadata{true};
         path filenameMetadata{"SomeoneElseShouldDecideAboutAGoodDefaultHere.json"};
     };
 } // namespace picongpu
