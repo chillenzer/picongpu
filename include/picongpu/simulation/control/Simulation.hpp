@@ -89,9 +89,13 @@
 #include <string>
 #include <vector>
 
+// TODO: This is a hack.
+#include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
+
 namespace picongpu
 {
     using namespace pmacc;
+    using nlohmann::json;
 
     /**
      * Global simulation controller class.
@@ -599,6 +603,14 @@ namespace picongpu
         MappingDesc* getMappingDescription()
         {
             return cellDescription.get();
+        }
+
+        json metadata()
+        {
+            return {
+                {"Simulation",
+                 {{"name", pluginGetName()},
+                  {"solver", "blubb"}}}}; // should later look like this: {"solver", myFieldSolver->metadata()}};
         }
 
     protected:

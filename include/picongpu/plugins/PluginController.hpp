@@ -75,9 +75,12 @@
 #include <list>
 #include <memory>
 
+// TODO: This is a hack.
+#include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
 
 namespace picongpu
 {
+    using nlohmann::json;
     using namespace pmacc;
 
     /**
@@ -191,6 +194,11 @@ namespace picongpu
         }
 
     public:
+        json metadata() const
+        {
+            return {{"PluginController", {{"doing", "something cool!"}}}};
+        }
+
         PluginController()
         {
             init();

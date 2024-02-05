@@ -34,8 +34,40 @@
 
 #include <iostream>
 
+// TODO: This is a hack.
+#include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
+
+
 namespace picongpu
 {
+    using nlohmann::json;
+    using std::ofstream;
+    using std::ostream;
+    using std::vector;
+    using std::filesystem::path;
+
+    // not passing by const ref because we want to be able to construct in-place via initialiser list
+    json merge(vector<json> const metadata)
+    {
+        json result = json::object();
+        for(auto const& entry : metadata)
+        {
+            result.merge_patch(entry);
+        }
+        return result;
+    }
+
+    void dump(json const& metadata, ostream& out)
+    {
+        const int spaces_for_indentation = 4;
+        out << metadata.dump(spaces_for_indentation);
+    }
+
+    void dump(json const& metadata, path const& filename)
+    {
+        ofstream out(filename);
+        dump(metadata, out);
+    }
     using namespace pmacc;
 
     template<class InitClass, class PluginClass, class SimulationClass>
@@ -71,7 +103,14 @@ namespace picongpu
             pluginConnector.loadPlugins();
             log<picLog::SIMULATION_STATE>("Startup");
             simulationClass->setInitController(initClass.get());
-            simulationClass->startSimulation();
+            if(dumpMetadata)
+            {
+                dump(
+                    merge({simulationClass->metadata(), mappingDesc->metadata(), pluginClass->metadata()}),
+                    filenameMetadata);
+            }
+            else
+                simulationClass->startSimulation();
         }
 
         void pluginRegisterHelp(po::options_description&) override
@@ -139,5 +178,8 @@ namespace picongpu
             }
             std::cout << std::endl;
         }
+
+        bool dumpMetadata{true};
+        path filenameMetadata{"SomeoneElseShouldDecideAboutAGoodDefaultHere.json"};
     };
 } // namespace picongpu

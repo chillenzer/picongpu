@@ -29,6 +29,9 @@
 
 #include <stdexcept>
 
+// TODO: This is a hack.
+#include <../../../thirdParty/nlohmann_json/single_include/nlohmann/json.hpp>
+
 namespace pmacc
 {
     /**
@@ -37,6 +40,7 @@ namespace pmacc
      * @tparam DIM dimension for grid/blocks
      * @tparam SuperCellSize mapper class for logical grid information
      */
+    using nlohmann::json;
 
     template<unsigned DIM, class SuperCellSize_>
     class MappingDescription
@@ -48,6 +52,14 @@ namespace pmacc
         };
 
         using SuperCellSize = SuperCellSize_;
+
+        json metadata()
+        {
+            return {
+                {"MappingDescription",
+                 {{"name", "MappingDescription"},
+                  {"SuperCellSize[0]", SuperCellSize::toRT()[0]}}}}; // should later have full vector
+        }
 
         /** constructor
          *
