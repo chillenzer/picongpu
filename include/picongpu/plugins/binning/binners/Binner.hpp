@@ -50,7 +50,10 @@ namespace picongpu
             }
         }
 
-        template<typename TBinningData>
+        template<
+            typename TBinningData,
+            template<typename, size_t> typename T_Buffer = HostDeviceBuffer,
+            typename T_Reduce = mpi::MPIReduce>
         class Binner : public IPlugin
         {
         public:
@@ -62,9 +65,9 @@ namespace picongpu
             std::string pluginName; /** @brief name used for restarts */
             TBinningData binningData;
             MappingDesc* cellDescription;
-            std::unique_ptr<HostDeviceBuffer<TDepositedQuantity, 1>> histBuffer;
+            std::unique_ptr<T_Buffer<TDepositedQuantity, 1>> histBuffer;
             uint32_t accumulateCounter = 0;
-            mpi::MPIReduce reduce{};
+            T_Reduce reduce{};
             bool isMain = false;
             WriteHist histWriter;
             std::optional<::openPMD::Series> m_series;
@@ -77,7 +80,7 @@ namespace picongpu
                  * Allocate and manage global histogram memory here, to facilitate time averaging
                  * @todo for auto n_bins. allocate full size buffer here. dont init axisExtents yet
                  */
-                this->histBuffer = std::make_unique<HostDeviceBuffer<TDepositedQuantity, 1>>(
+                this->histBuffer = std::make_unique<T_Buffer<TDepositedQuantity, 1>>(
                     binningData.axisExtentsND.productOfComponents());
                 isMain = reduce.hasResult(mpi::reduceMethods::Reduce());
             }

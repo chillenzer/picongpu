@@ -38,11 +38,15 @@ namespace picongpu
 {
     namespace plugins::binning
     {
-        template<typename TBinningData>
-        class ParticleBinner : public Binner<TBinningData>
+        template<
+            typename TBinningData,
+            template<typename, size_t> typename T_Buffer = HostDeviceBuffer,
+            typename T_Reduce = mpi::MPIReduce>
+        class ParticleBinner : public Binner<TBinningData, T_Buffer, T_Reduce>
         {
         public:
-            ParticleBinner(TBinningData const& bd, MappingDesc* cellDesc) : Binner<TBinningData>(bd, cellDesc)
+            ParticleBinner(TBinningData const& bd, MappingDesc* cellDesc)
+                : Binner<TBinningData, T_Buffer, T_Reduce>(bd, cellDesc)
             {
             }
 
