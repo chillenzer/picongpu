@@ -32,10 +32,12 @@
 #include "pmacc/Environment.hpp"
 #include "pmacc/mappings/kernel/MappingDescription.hpp"
 #include "pmacc/meta/String.hpp"
+#include "pmacc/particles/Identifier.hpp"
 
 #include <pmacc/test/PMaccFixture.hpp>
 
 #include <algorithm>
+#include <tuple>
 #include <type_traits>
 #include <vector>
 
@@ -157,6 +159,27 @@ namespace alpaka
 
 } // namespace alpaka
 
+std::string outputName{"binnerOutputName"};
+std::string functorName{"testFunctor"};
+int iterationNumber{42};
+
+template<typename T>
+auto read_value(auto iterationNumber) -> T
+{
+    auto series
+        = openPMD::Series(std::string("binningOpenPMD/") + outputName + "_%06T.bp4", openPMD::Access::READ_ONLY);
+    auto i = series.iterations[iterationNumber];
+    ::openPMD::MeshRecordComponent dataset
+        = series.iterations[iterationNumber].meshes["Binning"][::openPMD::RecordComponent::SCALAR];
+    ::openPMD::Extent extent = dataset.getExtent();
+    ::openPMD::Offset offset(extent.size(), 0);
+    std::vector<T> loadedVal(100, 5);
+    dataset.loadChunk(std::shared_ptr<T>(loadedVal.data(), [](auto const*) {}), offset, extent);
+    series.flush();
+    series.iterations[iterationNumber].close();
+    return loadedVal[2];
+}
+
 TEST_CASE("Binner")
 {
     pmacc::Environment<simDim>::get().initGrids(
@@ -166,38 +189,42 @@ TEST_CASE("Binner")
     auto GRID_VOLUME = pmacc::Environment<simDim>::get().SubGrid().getGlobalDomain().size.productOfComponents();
     SECTION("TRIVIAL Particle")
     {
-        auto depData = createFunctorDescription<double>([]() -> double { return 0.; }, "test");
-        auto bd = ParticleBinningData("binnerOutputName", getAxisTuple(), std::tuple<>{}, depData, std::tuple<>{});
+        auto depData = createFunctorDescription<double>([]() -> double { return 0.; }, functorName);
+        auto bd = ParticleBinningData(outputName, getAxisTuple(), std::tuple<>{}, depData, std::tuple<>{});
 
         auto cellDescription = pmacc::MappingDescription<simDim, SuperCellSize>(pmacc::DataSpace<simDim>(8, 8, 4));
         auto binner = ParticleBinner<std::remove_cvref_t<decltype(bd)>, DummyBuffer>(bd, &cellDescription);
 
-        binner.notify(42);
+        binner.notify(iterationNumber);
     }
 
     SECTION("TRIVIAL field")
     {
-        auto func = [](auto const worker, auto const& domainInfo) -> int { return GENERATE(1, 10, -41); };
-        auto return_value = func(nullptr, nullptr);
+        auto perform_test = [](auto&& depData, auto expectedValue)
         {
-            auto depData = createFunctorDescription<int>(func, "test");
-            auto bd
-                = FieldBinningData("binnerOutputName", getAxisTupleField(), std::tuple<>{}, depData, std::tuple<>{});
-
+            auto bd = FieldBinningData(outputName, getAxisTupleField(), std::tuple<>{}, depData, std::tuple<>{});
             auto cellDescription = pmacc::MappingDescription<simDim, SuperCellSize>(pmacc::DataSpace<simDim>(8, 8, 4));
             auto binner = FieldBinner(bd, &cellDescription);
-            binner.notify(42);
+            binner.notify(iterationNumber);
+
+            CHECK(read_value<int>(iterationNumber) == expectedValue);
+        };
+        // Slightly convoluted here but we want the convenience of SECTIONs
+        // but also want to extract some variables with hard-to-determine types from their scopes.
+        SECTION("constant values")
+        {
+            auto func = [](auto const worker, auto const& domainInfo) -> int { return GENERATE(1, 10, -41); };
+            auto return_value = func(nullptr, nullptr);
+            auto depData = createFunctorDescription<int>(func, functorName);
+            perform_test(depData, return_value * GRID_VOLUME);
         }
-        auto series = openPMD::Series("binningOpenPMD/binnerOutputName_%06T.bp4", openPMD::Access::READ_ONLY);
-        auto i = series.iterations[42];
-        ::openPMD::MeshRecordComponent dataset
-            = series.iterations[42].meshes["Binning"][::openPMD::RecordComponent::SCALAR];
-        ::openPMD::Extent extent = dataset.getExtent();
-        ::openPMD::Offset offset(extent.size(), 0);
-        std::vector<int> loadedVal(100, 5);
-        dataset.loadChunk(std::shared_ptr<int>(loadedVal.data(), [](auto const*) {}), offset, extent);
-        series.flush();
-        series.iterations[42].close();
-        CHECK(loadedVal[2] == (return_value * GRID_VOLUME));
+
+        SECTION("linear values")
+        {
+            auto func = [](auto const worker, auto const& domainInfo) -> int { return domainInfo.localCellIdx[0]; };
+            auto depData = createFunctorDescription<int>(func, functorName);
+            auto gaussFormula = [](int n) { return n * (n - 1) / 2; };
+            perform_test(depData, 8 * 4 * gaussFormula(8));
+        }
     }
 }
