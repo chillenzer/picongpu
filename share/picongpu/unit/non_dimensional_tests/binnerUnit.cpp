@@ -18,6 +18,7 @@
  * and the GNU Lesser General Public License along with PMacc.
  * If not, see <http://www.gnu.org/licenses/>.
  */
+#include "catch2/generators/catch_generators.hpp"
 #include "catch2/matchers/catch_matchers.hpp"
 #include "catch2/matchers/catch_matchers_range_equals.hpp"
 #include "picongpu/plugins/binning/BinningData.hpp"
@@ -28,6 +29,7 @@
 #include "picongpu/plugins/binning/axis/LinearAxis.hpp"
 #include "picongpu/plugins/binning/binners/FieldBinner.hpp"
 #include "picongpu/plugins/binning/binners/ParticleBinner.hpp"
+#include "pmacc/Environment.hpp"
 #include "pmacc/mappings/kernel/MappingDescription.hpp"
 #include "pmacc/meta/String.hpp"
 
@@ -156,8 +158,12 @@ namespace alpaka
 } // namespace alpaka
 
 TEST_CASE("Binner")
-
 {
+    pmacc::Environment<simDim>::get().initGrids(
+        pmacc::DataSpace<simDim>(8, 8, 4),
+        pmacc::DataSpace<simDim>(8, 8, 4),
+        pmacc::DataSpace<simDim>(0, 0, 0));
+    auto GRID_VOLUME = pmacc::Environment<simDim>::get().SubGrid().getGlobalDomain().size.productOfComponents();
     SECTION("TRIVIAL Particle")
     {
         auto depData = createFunctorDescription<double>([]() -> double { return 0.; }, "test");
@@ -169,33 +175,29 @@ TEST_CASE("Binner")
         binner.notify(42);
     }
 
-    //    SECTION("TRIVIAL field")
-    //    {
-    //        pmacc::Environment<simDim>::get().initGrids(
-    //            pmacc::DataSpace<simDim>(8, 8, 4),
-    //            pmacc::DataSpace<simDim>(8, 8, 4),
-    //            pmacc::DataSpace<simDim>(0, 0, 0));
-    //
-    //        {
-    //            auto depData = createFunctorDescription<double>(
-    //                [](auto const worker, auto const& domainInfo) -> double { return 0.; },
-    //                "test");
-    //            auto bd
-    //                = FieldBinningData("binnerOutputName", getAxisTupleField(), std::tuple<>{}, depData,
-    //                std::tuple<>{});
-    //
-    //            auto cellDescription = pmacc::MappingDescription<simDim, SuperCellSize>(pmacc::DataSpace<simDim>(8,
-    //            8, 4)); auto binner = FieldBinner(bd, &cellDescription); binner.notify(42);
-    //        }
-    //        auto series = openPMD::Series("binningOpenPMD/binnerOutputName_%06T.bp4", openPMD::Access::READ_ONLY);
-    //        auto i = series.iterations[42];
-    //        ::openPMD::MeshRecordComponent dataset
-    //            = series.iterations[42].meshes["Binning"][::openPMD::RecordComponent::SCALAR];
-    //        ::openPMD::Extent extent = dataset.getExtent();
-    //        ::openPMD::Offset offset(extent.size(), 0);
-    //        std::vector<double> loadedVal(100);
-    //        dataset.loadChunk(std::shared_ptr<double>(loadedVal.data(), [](auto const*) {}), offset, extent);
-    //        series.flush();
-    //        series.iterations[42].close();
-    //    }
+    SECTION("TRIVIAL field")
+    {
+        auto func = [](auto const worker, auto const& domainInfo) -> int { return GENERATE(1, 10, -41); };
+        auto return_value = func(nullptr, nullptr);
+        {
+            auto depData = createFunctorDescription<int>(func, "test");
+            auto bd
+                = FieldBinningData("binnerOutputName", getAxisTupleField(), std::tuple<>{}, depData, std::tuple<>{});
+
+            auto cellDescription = pmacc::MappingDescription<simDim, SuperCellSize>(pmacc::DataSpace<simDim>(8, 8, 4));
+            auto binner = FieldBinner(bd, &cellDescription);
+            binner.notify(42);
+        }
+        auto series = openPMD::Series("binningOpenPMD/binnerOutputName_%06T.bp4", openPMD::Access::READ_ONLY);
+        auto i = series.iterations[42];
+        ::openPMD::MeshRecordComponent dataset
+            = series.iterations[42].meshes["Binning"][::openPMD::RecordComponent::SCALAR];
+        ::openPMD::Extent extent = dataset.getExtent();
+        ::openPMD::Offset offset(extent.size(), 0);
+        std::vector<int> loadedVal(100, 5);
+        dataset.loadChunk(std::shared_ptr<int>(loadedVal.data(), [](auto const*) {}), offset, extent);
+        series.flush();
+        series.iterations[42].close();
+        CHECK(loadedVal[2] == (return_value * GRID_VOLUME));
+    }
 }
