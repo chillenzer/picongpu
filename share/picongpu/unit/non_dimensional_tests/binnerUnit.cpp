@@ -209,8 +209,7 @@ TEST_CASE("Binner")
 
             CHECK(read_value<int>(iterationNumber) == expectedValue);
         };
-        // Slightly convoluted here but we want the convenience of SECTIONs
-        // but also want to extract some variables with hard-to-determine types from their scopes.
+
         SECTION("constant values")
         {
             auto func = [](auto const worker, auto const& domainInfo) -> int { return GENERATE(1, 10, -41); };
