@@ -6,9 +6,17 @@ License: GPLv3+
 """
 
 import json
-from uuid import uuid4 as uuid
 from os import PathLike
 from pathlib import Path
+from uuid import uuid4 as uuid
+
+from pydantic import Field
+
+from picongpu.piccom.schema import MetadataFile
+
+
+class _FullMetadataFile(MetadataFile):
+    identifier: str = Field(serialization_alias="_id")
 
 
 def interpret_dot_notation(spec):
@@ -39,18 +47,25 @@ class LocalFolderDatabase:
     def __getitem__(self, collection):
         return LocalFolderDatabase(self.directory / collection)
 
-    def _generate_id(self, content):
+    def _generate_id(self):
         return uuid().hex
 
-    def insert_one(self, content: dict, identifier=None):
-        if identifier is None:
-            return self.insert_one(content, self._generate_id(content))
-        content_with_id = {"_id": identifier} | content
-        path = self.get_path(identifier)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w") as file:
-            json.dump(content_with_id, file)
-        return content_with_id
+    def insert_one(self, content: MetadataFile | dict | _FullMetadataFile, identifier: str | None = None):
+        if isinstance(content, _FullMetadataFile):
+            path = self.get_path(content.identifier)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("w") as file:
+                file.write(content.model_dump_json(by_alias=True))
+            return content.model_dump(by_alias=True)
+
+        if isinstance(content, dict):
+            return self.insert_one(MetadataFile.model_validate(content), identifier=identifier)
+        if isinstance(content, MetadataFile):
+            return self.insert_one(
+                _FullMetadataFile.model_validate(
+                    content.model_dump() | {"identifier": identifier or self._generate_id()}
+                )
+            )
 
     def get_path(self, identifier):
         return self.directory / f"{identifier}.json"

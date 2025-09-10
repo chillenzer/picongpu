@@ -4,3 +4,5 @@ Copyright 2025 PIConGPU contributors
 Authors: Julian Lenz
 License: GPLv3+
 """
+
+from .metadata_file import MetadataFile as MetadataFile
