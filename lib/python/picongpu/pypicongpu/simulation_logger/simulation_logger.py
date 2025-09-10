@@ -9,7 +9,7 @@ from collections import namedtuple
 from functools import singledispatch
 import json
 from datetime import datetime, timezone
-from hashlib import sha256
+from uuid import uuid4 as uuid
 
 METADATA_FORMAT_VERSION = "0.1.0"
 
@@ -32,7 +32,7 @@ def make_serialisable(obj):
 
 
 def _generate_action_id(payload):
-    return sha256(json.dumps(payload).encode()).hexdigest()
+    return uuid().hex
 
 
 def _compose_payload(serialisable_object=None, action_name=None, update_of=None):

@@ -35,7 +35,7 @@ class TestLocalFolderDatabase(unittest.TestCase):
 
         self.my_dir = Path(self.storage.name)
         self.assertTrue(is_empty(self.my_dir))
-        self.database = LocalFolderDatabase("testauthor", self.my_dir)
+        self.database = LocalFolderDatabase(self.my_dir)
 
     def tearDown(self) -> None:
         self.storage.cleanup()
@@ -61,7 +61,7 @@ class TestLocalFolderDatabase(unittest.TestCase):
         self.assertEqual({"_id": identifier} | data, content)
 
     def test_interprets_string_as_path(self):
-        self.assertTrue(isinstance(LocalFolderDatabase("testauthor", "abc").get_directory(), Path))
+        self.assertTrue(isinstance(LocalFolderDatabase("abc").get_directory(), Path))
 
     def test_updates_with_set_operator(self):
         arbitrary_value = 7
@@ -95,7 +95,7 @@ class TestLocalFolderDatabase(unittest.TestCase):
             self.database.update_one({"_id": identifier}, {"$pull": {"x.y": arbitrary_value}})
 
     def test_creates_directories_as_needed(self):
-        database = LocalFolderDatabase("testauthor", self.my_dir / "this" / "does" / "not" / "exist")
+        database = LocalFolderDatabase(self.my_dir / "this" / "does" / "not" / "exist")
         identifier = database.insert_one(dict())["_id"]
         self.assertEqual(database.get_content(identifier)["_id"], identifier)
 

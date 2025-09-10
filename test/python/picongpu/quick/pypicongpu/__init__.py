@@ -1,5 +1,6 @@
 # flake8: noqa
 from .simulation import *  # pyflakes.ignore
+from .simulation_logger import *  # pyflakes.ignore
 from .grid import *  # pyflakes.ignore
 from .solver import *  # pyflakes.ignore
 from .runner import *  # pyflakes.ignore

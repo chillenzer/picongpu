@@ -17,7 +17,7 @@ from functools import reduce
 from os import chdir, environ, path
 
 import typeguard
-from piccom import Communicator
+from picongpu.piccom import Communicator
 
 from picongpu.pypicongpu.simulation_logger.simulation_logger import (
     SimulationLogger,
@@ -216,7 +216,7 @@ class Runner:
         # dump used paths for diagnostics
         self.__log_dirs()
 
-        self.logger = SimulationLogger(communicator)
+        self.logger = SimulationLogger(communicator or Communicator(get_tmpdir_with_name("metadata-db")))
 
         # collision checks
         assert self.scratch_dir != self.setup_dir, "scratch dir must not be equal to the setup dir"

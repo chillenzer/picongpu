@@ -5,6 +5,8 @@ Authors: Julian Lenz
 License: GPLv3+
 """
 
-from . import db as db
-from . import schema as schema
-from .communicator import Communicator as Communicator
+from .db import LocalFolderDatabase
+
+
+class Communicator(LocalFolderDatabase):
+    pass
