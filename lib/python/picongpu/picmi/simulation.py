@@ -18,6 +18,7 @@ import typeguard
 
 from picongpu.picmi.diagnostics import ParticleDump, FieldDump
 from picongpu.pypicongpu.output.openpmd_plugin import OpenPMDPlugin, FieldDump as PyPIConGPUFieldDump
+from picongpu.piccom import Communicator
 from picongpu.pypicongpu.species.initmanager import InitManager
 
 from .. import pypicongpu
@@ -153,6 +154,7 @@ class Simulation(picmistandard.PICMI_Simulation):
         picongpu_base_density: typing.Optional[float] = None,
         picongpu_walltime: typing.Optional[datetime.timedelta] = None,
         picongpu_binomial_current_interpolation: bool = False,
+        picongpu_communicator: Communicator | None = None,
         **keyword_arguments,
     ):
         self.picongpu_template_dir = _normalise_template_dir(picongpu_template_dir)
@@ -163,8 +165,12 @@ class Simulation(picmistandard.PICMI_Simulation):
         self.picongpu_base_density = picongpu_base_density
         self.picongpu_walltime = picongpu_walltime
         self.picongpu_binomial_current_interpolation = picongpu_binomial_current_interpolation
+        self.picongpu_communicator = picongpu_communicator or Communicator("unknown")
+
         self.picongpu_custom_user_input = None
         self.__runner = None
+
+        self.picongpu_communicator.print_info()
 
         picmistandard.PICMI_Simulation.__init__(self, **keyword_arguments)
 
@@ -473,8 +479,8 @@ class Simulation(picmistandard.PICMI_Simulation):
         if pypicongpu_simulation is None:
             pypicongpu_simulation = self.get_as_pypicongpu()
 
-        self.__runner = pypicongpu.runner.Runner(pypicongpu_simulation, self.picongpu_template_dir, setup_dir=file_name)
-        self.__runner.generate()
+        runner = self.picongpu_get_runner(pypicongpu_simulation, self.picongpu_template_dir, setup_dir=file_name)
+        runner.generate()
 
     def picongpu_add_custom_user_input(self, custom_user_input: pypicongpu.customuserinput.InterfaceCustomUserInput):
         """add custom user input to previously stored input"""
@@ -595,13 +601,18 @@ class Simulation(picmistandard.PICMI_Simulation):
 
     def picongpu_run(self) -> None:
         """build and run PIConGPU simulation"""
-        if self.__runner is None:
-            self.__runner = pypicongpu.runner.Runner(self.get_as_pypicongpu(), self.picongpu_template_dir)
-        self.__runner.generate()
-        self.__runner.build()
-        self.__runner.run()
+        runner = self.picongpu_get_runner()
+        runner.generate()
+        runner.build()
+        runner.run()
 
-    def picongpu_get_runner(self) -> pypicongpu.runner.Runner:
+    def picongpu_get_runner(self, *args, **kwargs) -> pypicongpu.runner.Runner:
+        if len(args) == 0:
+            args = (self.get_as_pypicongpu(),)
+        kwargs = {
+            "pypicongpu_template_dir": self.picongpu_template_dir,
+            "communicator": self.picongpu_communicator,
+        } | kwargs
         if self.__runner is None:
-            self.__runner = pypicongpu.runner.Runner(self.get_as_pypicongpu(), self.picongpu_template_dir)
+            self.__runner = pypicongpu.runner.Runner(*args, **kwargs)
         return self.__runner
