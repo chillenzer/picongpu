@@ -5,6 +5,5 @@ Authors: Julian Lenz
 License: GPLv3+
 """
 
-from . import db as db
-from . import schema as schema
-from .communicator import Communicator as Communicator
+# flake8: noqa
+from .simulation_logger import *  # pyflakes.ignore
