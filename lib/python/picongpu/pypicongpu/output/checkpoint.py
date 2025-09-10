@@ -5,13 +5,15 @@ Authors: Masoud Afshari
 License: GPLv3+
 """
 
+import typing
+from pathlib import Path
+from typing import Dict, Optional
+
+import typeguard
+
 from .. import util
 from .plugin import Plugin
 from .timestepspec import TimeStepSpec
-
-import typeguard
-import typing
-from typing import Optional, Dict
 
 
 @typeguard.typechecked
@@ -30,6 +32,15 @@ class Checkpoint(Plugin):
     openPMD = util.build_typesafe_property(Optional[Dict])
 
     _name = "checkpoint"
+
+    @property
+    def results(self):
+        openPMD_options = self.openPMD or {}
+        file = Path(
+            f"{self.file or 'checkpoint'}{openPMD_options.get('infix', '_%06T')}.{openPMD_options.get('ext', 'bp5')}"
+        )
+        directory = self.directory or "checkpoints"
+        return {"checkpoint": file if file.is_absolute() else Path(directory) / file}
 
     def __init__(self):
         "do nothing"

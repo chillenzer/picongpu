@@ -95,10 +95,10 @@ def _get_version_control_info():
 def _gather_run_info(self):
     return {
         "platform": _platform_information(),
-        "results": {"type": "on local disk"}
+        "expected results": {"type": "on local disk"}
         | {
-            "files": {
-                f"{plugin._name}/{name}": Path(self.run_dir) / path
+            "paths": {
+                f"{plugin._name}/{name}": Path(self.run_dir) / "simOutput" / path
                 for plugin in self.sim.plugins
                 for name, path in plugin.results.items()
             }
