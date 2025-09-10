@@ -9,6 +9,7 @@ from collections import namedtuple
 from functools import singledispatch
 import json
 from datetime import datetime, timezone
+from typing import Callable, Any
 from uuid import uuid4 as uuid
 
 METADATA_FORMAT_VERSION = "0.1.0"
@@ -104,20 +105,34 @@ class SimulationLogger:
         return tuple(set(self.action_id_to_object.values()))
 
 
-def logged_operation(func=None, /, action=None, capture_args=True, capture_result=True):
+def logged_operation(
+    func=None,
+    /,
+    action=None,
+    capture_args=True,
+    capture_result=True,
+    info: Callable[[Any], dict[str, Any]] | dict[str, Any] | None = None,
+):
+    info = info or {}
+    if isinstance(info, dict):
+        return logged_operation(
+            func, action=action, capture_args=capture_args, capture_result=capture_result, info=lambda _: info
+        )
     if func is not None:
-        return logged_operation(action=action, capture_result=capture_result)(func)
+        return logged_operation(
+            action=action, capture_args=capture_args, capture_result=capture_result, info=lambda _: info
+        )(func)
 
     def decorator(func):
         def tmp(self, *args, return_action_id=False, update_of=None, **kwargs):
-            info = {"args": args, "kwargs": kwargs} if capture_args else None
+            local_info = info(self) | ({"args": args, "kwargs": kwargs} if capture_args else {})
             if update_of is not None:
-                action_id = self.logger.update(action_id=update_of, action=action, payload={"info": info})
+                action_id = self.logger.update(action_id=update_of, action=action, payload={"info": local_info})
             else:
                 payload = make_serialisable(self)
                 if not isinstance(payload, dict):
                     payload = {"payload": payload}
-                payload = {"info": info} | payload
+                payload = {"info": local_info} | payload
 
                 action_id = self.logger.log(payload=payload, action=action)
             try:
