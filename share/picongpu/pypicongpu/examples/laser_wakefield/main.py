@@ -5,14 +5,16 @@ Authors: Masoud Afshari, Brian Edward Marre, Richard Pausch
 License: GPLv3+
 """
 
-from picongpu import picmi
-from picongpu import pypicongpu
+import datetime
+import logging
+
 import numpy as np
 from scipy.constants import c
-import logging
-import datetime
 
-from picongpu.pypicongpu.output.png import EMFieldScaleEnum, ColorScaleEnum
+from picongpu import picmi, pypicongpu
+from picongpu.pypicongpu.output.png import ColorScaleEnum, EMFieldScaleEnum
+
+from picongpu.piccom import Communicator
 
 # set log level:
 # options (in ascending order) are: DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -144,6 +146,8 @@ sim = picmi.Simulation(
     picongpu_moving_window_move_point=0.9,
     picongpu_walltime=datetime.timedelta(hours=2.0),
     picongpu_interaction=interaction,
+    # defaults to storing locally in a temporary directory:
+    picongpu_communicator=Communicator(author="Julian Lenz"),
 )
 
 for species, layout in species_list:
