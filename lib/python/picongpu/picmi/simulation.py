@@ -602,9 +602,9 @@ class Simulation(picmistandard.PICMI_Simulation):
     def picongpu_run(self) -> None:
         """build and run PIConGPU simulation"""
         runner = self.picongpu_get_runner()
-        runner.generate()
-        runner.build()
-        runner.run()
+        _, action_id = runner.generate(return_action_id=True)
+        _, action_id = runner.build(return_action_id=True, update_of=action_id)
+        runner.run(update_of=action_id)
 
     def picongpu_get_runner(self, *args, **kwargs) -> pypicongpu.runner.Runner:
         if len(args) == 0:
