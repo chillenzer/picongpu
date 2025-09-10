@@ -8,14 +8,12 @@ License: GPLv3+
 from pathlib import Path
 from typing import Annotated
 
-import typeguard
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from .plugin import Plugin
 from .timestepspec import TimeStepSpec
 
 
-@typeguard.typechecked
 class Checkpoint(Plugin, BaseModel):
     period: TimeStepSpec | None
     timePeriod: Annotated[int, Field(..., ge=0)] | None
@@ -31,6 +29,15 @@ class Checkpoint(Plugin, BaseModel):
     openPMD: dict | None
 
     _name: str = PrivateAttr("checkpoint")
+
+    @property
+    def results(self):
+        openPMD_options = self.openPMD or {}
+        file = Path(
+            f"{self.file or 'checkpoint'}{openPMD_options.get('infix', '_%06T')}.{openPMD_options.get('ext', 'bp5')}"
+        )
+        directory = self.directory or "checkpoints"
+        return {"checkpoint": file if file.is_absolute() else Path(directory) / file}
 
     @model_validator(mode="after")
     def check(self):

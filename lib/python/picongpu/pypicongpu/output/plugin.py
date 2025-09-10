@@ -15,4 +15,4 @@ import typeguard
 class Plugin(SelfRegisteringRenderedObject):
     """general interface for all plugins"""
 
-    pass
+    results = {}
