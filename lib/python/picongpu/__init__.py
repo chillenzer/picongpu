@@ -9,11 +9,13 @@ moved into the "extra" submodule to keep the naming schemes consistent.
 """
 
 from . import extra
+from . import piccom
 from . import picmi
 from . import pypicongpu
 
 __all__ = [
     "extra",
+    "piccom",
     "picmi",
     "pypicongpu",
 ]
