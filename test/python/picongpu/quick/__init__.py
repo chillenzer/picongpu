@@ -3,9 +3,6 @@ from . import picmi, pypicongpu, piccom
 
 def load_tests(loader, standard_tests, pattern):
     standard_tests.addTests(
-        (
-            loader.loadTestsFromModule(module, pattern=pattern)
-            for module in (picmi, pypicongpu, piccom)
-        )
+        (loader.loadTestsFromModule(module, pattern=pattern) for module in (picmi, pypicongpu, piccom))
     )
     return standard_tests

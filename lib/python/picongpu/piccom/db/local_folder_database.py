@@ -31,8 +31,8 @@ class LocalFolderDatabase:
     Simple mongoDB-like database storing json files on disk
     """
 
-    def __init__(self, username: str, directory: PathLike):
-        self.username = username
+    def __init__(self, author: str, directory: PathLike):
+        self.username = author
         self.directory = Path(directory)
         if self.directory.exists() and not self.directory.is_dir():
             raise ValueError("{directory=} should point to a directory usable for storage.")

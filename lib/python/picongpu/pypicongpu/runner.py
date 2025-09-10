@@ -17,6 +17,13 @@ from os import chdir, environ, path
 from pathlib import Path
 
 import typeguard
+from piccom import Communicator
+
+from picongpu.pypicongpu.simulation_logger.simulation_logger import (
+    SimulationLogger,
+    logged_operation,
+    make_serialisable,
+)
 
 from . import util
 from .rendering import Renderer
@@ -38,7 +45,7 @@ def runArgs(name, args):
         raise RuntimeError("subprocess failed")
 
 
-def get_tmpdir_with_name(name, parent: str = None):
+def get_tmpdir_with_name(name, parent: str | None = None):
     """
     returns a not existing temporary directory path,
     which contains the given name
@@ -132,6 +139,8 @@ class Runner:
     regex that matches a valid path. Note: allows *less* characters than the OS
     """
 
+    logger = util.build_typesafe_property(SimulationLogger)
+
     def __init__(
         self,
         sim,
@@ -139,6 +148,7 @@ class Runner:
         scratch_dir: typing.Optional[str] = None,
         setup_dir: typing.Optional[str] = None,
         run_dir: typing.Optional[str] = None,
+        communicator: Communicator | None = None,
     ):
         """
         initialize self using simulation and (maybe) given paths
@@ -207,6 +217,8 @@ class Runner:
 
         # dump used paths for diagnostics
         self.__log_dirs()
+
+        self.logger = SimulationLogger(communicator)
 
         # collision checks
         assert self.scratch_dir != self.setup_dir, "scratch dir must not be equal to the setup dir"
@@ -326,6 +338,7 @@ class Runner:
             ),
         )
 
+    @logged_operation(action="generate_input_files", capture_args=False, capture_result=False)
     def generate(self, printDirToConsole=False):
         """
         generate the picongpu-compatible input files
@@ -340,6 +353,7 @@ class Runner:
         self.__copy_template()
         self.__render_templates()
 
+    @logged_operation(action="build", capture_args=False, capture_result=False)
     def build(self):
         """
         build (compile) picongpu-compatible input files
@@ -352,6 +366,7 @@ class Runner:
         )
         self.__build()
 
+    @logged_operation(action="run", capture_args=False, capture_result=False)
     def run(self):
         """
         run compiled picongpu simulation
@@ -368,3 +383,13 @@ class Runner:
             # TODO: maybe note that multi-device support is disabled
 
         self.__run()
+
+
+@make_serialisable.register
+def _(runner: Runner):
+    return {
+        "setup_dir": runner.setup_dir,
+        "scratch_dir": runner.scratch_dir,
+        "run_dir": runner.run_dir,
+        "simulation": runner.sim.get_rendering_context(),
+    }
