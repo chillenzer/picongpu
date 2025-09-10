@@ -50,7 +50,7 @@ class LocalFolderDatabase:
     def _generate_id(self):
         return uuid().hex
 
-    def insert_one(self, content: MetadataFile | dict | _FullMetadataFile, identifier: str | None = None):
+    def _insert_one(self, content: MetadataFile | dict | _FullMetadataFile, identifier: str | None = None):
         if isinstance(content, _FullMetadataFile):
             path = self.get_path(content.identifier)
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -59,13 +59,16 @@ class LocalFolderDatabase:
             return content.model_dump(by_alias=True)
 
         if isinstance(content, dict):
-            return self.insert_one(MetadataFile.model_validate(content), identifier=identifier)
+            return self._insert_one(MetadataFile.model_validate(content), identifier=identifier)
         if isinstance(content, MetadataFile):
-            return self.insert_one(
+            return self._insert_one(
                 _FullMetadataFile.model_validate(
                     content.model_dump() | {"identifier": identifier or self._generate_id()}
                 )
             )
+
+    def insert_one(self, content: MetadataFile | dict, identifier: str | None = None):
+        return self._insert_one(content, identifier)
 
     def get_path(self, identifier):
         return self.directory / f"{identifier}.json"

@@ -85,6 +85,8 @@ class Simulation(picmistandard.PICMI_Simulation):
 
     __runner = pypicongpu.util.build_typesafe_property(typing.Optional[pypicongpu.runner.Runner])
 
+    _latest_action_id: str
+
     # @todo remove boiler plate constructor argument list once picmistandard reference implementation switches to
     #   pydantic, Brian Marre, 2024
     def __init__(
@@ -437,7 +439,7 @@ class Simulation(picmistandard.PICMI_Simulation):
             pypicongpu_simulation = self.get_as_pypicongpu()
 
         runner = self.picongpu_get_runner(pypicongpu_simulation, self.picongpu_template_dir, setup_dir=file_name)
-        runner.generate()
+        _, self._latest_action_id = runner.generate(return_action_id=True)
 
     def picongpu_add_custom_user_input(self, custom_user_input: pypicongpu.customuserinput.InterfaceCustomUserInput):
         """add custom user input to previously stored input"""
@@ -537,17 +539,26 @@ class Simulation(picmistandard.PICMI_Simulation):
     def picongpu_run(self) -> None:
         """build and run PIConGPU simulation"""
         runner = self.picongpu_get_runner()
-        _, action_id = runner.generate(return_action_id=True)
-        _, action_id = runner.build(return_action_id=True, update_of=action_id)
-        runner.run(update_of=action_id)
+        _, self._latest_action_id = runner.generate(return_action_id=True)
+        _, self._latest_action_id = runner.build(return_action_id=True, update_of=self._latest_action_id)
+        _, self._latest_action_id = runner.run(return_action_id=True, update_of=self._latest_action_id)
 
     def picongpu_get_runner(self, *args, **kwargs) -> pypicongpu.runner.Runner:
-        if len(args) == 0:
-            args = (self.get_as_pypicongpu(),)
+        for name, value in zip(
+            ("sim", "pypicongpu_template_dir", "scratch_dir", "setup_dir", "run_dir", "communicator"), args
+        ):
+            if name in kwargs:
+                raise ValueError(
+                    f"Duplicate {name=} in picongpu_get_runner: Got {value=} from args and {kwargs[name]=}."
+                )
+            kwargs[name] = value
+
         kwargs = {
+            "sim": self.get_as_pypicongpu(),
             "pypicongpu_template_dir": self.picongpu_template_dir,
             "communicator": self.picongpu_communicator,
         } | kwargs
+
         if self.__runner is None:
-            self.__runner = pypicongpu.runner.Runner(*args, **kwargs)
+            self.__runner = pypicongpu.runner.Runner(**kwargs)
         return self.__runner
