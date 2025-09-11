@@ -23,11 +23,10 @@ from .laser import (
     PlaneWaveLaser,
 )
 from .movingwindow import MovingWindow
-from .output import Plugin, OpenPMDPlugin
+from .output import OpenPMDPlugin, Plugin
 from .output.timestepspec import TimeStepSpec
 from .rendering import RenderedObject
 from .walltime import Walltime
-
 
 AnyLaser = DispersivePulseLaser | FromOpenPMDPulseLaser | GaussianLaser | PlaneWaveLaser
 
