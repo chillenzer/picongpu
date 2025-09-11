@@ -11,7 +11,7 @@ import unittest
 from datetime import datetime, timezone
 from packaging.version import parse as parse_version
 
-from picongpu.piccom.db import LocalFolderDatabase
+from picongpu.piccom import Communicator
 from picongpu.pypicongpu.simulation_logger.simulation_logger import (
     SimulationLogger,
     logged_operation,
@@ -71,7 +71,7 @@ class TestSimulationLogger(unittest.TestCase):
             logging.warning("Using in-memory directory failed.")
             self.storage = tempfile.TemporaryDirectory()
 
-        self.database = LocalFolderDatabase(self.storage.name)
+        self.database = Communicator("arbitrary_author", directory=self.storage.name)
         self.logger = SimulationLogger(self.database)
         self.arbitrary_payload = Payload()
 

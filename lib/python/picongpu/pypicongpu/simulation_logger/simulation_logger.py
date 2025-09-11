@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Callable, Any
 from uuid import uuid4 as uuid
 
-METADATA_FORMAT_VERSION = "0.1.0"
+from picongpu.piccom.schema import METADATA_FORMAT_VERSION
 
 
 @singledispatch
@@ -119,9 +119,9 @@ def logged_operation(
             func, action=action, capture_args=capture_args, capture_result=capture_result, info=lambda _: info
         )
     if func is not None:
-        return logged_operation(
-            action=action, capture_args=capture_args, capture_result=capture_result, info=lambda _: info
-        )(func)
+        return logged_operation(action=action, capture_args=capture_args, capture_result=capture_result, info=info)(
+            func
+        )
 
     def decorator(func):
         def tmp(self, *args, return_action_id=False, update_of=None, **kwargs):

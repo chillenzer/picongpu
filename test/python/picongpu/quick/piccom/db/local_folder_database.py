@@ -5,14 +5,16 @@ Authors: Julian Lenz
 License: GPLv3+
 """
 
-from datetime import datetime, timezone
 import logging
 import tempfile
 import unittest
+from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 
 from picongpu.piccom.db import LocalFolderDatabase
 from picongpu.piccom.schema import MetadataFile
+from picongpu.piccom.schema.log_entry import LogEntry
 
 
 def is_empty(path):
@@ -24,7 +26,29 @@ def is_empty(path):
 
 
 def metadata_file_from(obj):
-    return MetadataFile(username="unknown", date_time=datetime.now(timezone.utc), log=obj)
+    return MetadataFile(
+        username="unknown",
+        date_time=datetime.now(timezone.utc),
+        log={"uuid": LogEntry(action_name="dummy", update_of=None, timestamp=datetime.now(timezone.utc), content=obj)},
+    )
+
+
+def neutralise_timestamps(dictionary):
+    dictionary = deepcopy(dictionary)
+    if not isinstance(value := dictionary.pop("date_time", None), datetime):
+        try:
+            datetime.fromisoformat(value)
+        except Exception as error:
+            raise AssertionError(f"Failed to find a valid 'date_time' key in {dictionary=}. Found {value=}.") from error
+
+    for d in dictionary["log"].values():
+        if not isinstance(value := d.pop("timestamp", None), datetime):
+            try:
+                datetime.fromisoformat(value)
+            except Exception as error:
+                raise AssertionError(f"Failed to find a valid 'timestamp' key in {d=}. Found {value=}.") from error
+
+    return dictionary
 
 
 class TestLocalFolderDatabase(unittest.TestCase):
@@ -64,10 +88,8 @@ class TestLocalFolderDatabase(unittest.TestCase):
     def test_returns_content_of_identifier(self):
         data = dict(x=1, y="asdf", z=False)
         identifier = self.database.insert_one(metadata_file_from(data))["_id"]
-        content = self.database.get_content(identifier) | {"date_time": "ignored"}
-        expected = (
-            {"_id": identifier} | metadata_file_from(data).model_dump() | {"date_time": "ignored", "keywords": []}
-        )
+        content = neutralise_timestamps(self.database.get_content(identifier))
+        expected = neutralise_timestamps(metadata_file_from(data).model_dump() | {"_id": identifier, "keywords": []})
         self.assertDictEqual(expected, content)
 
     def test_interprets_string_as_path(self):
@@ -76,33 +98,33 @@ class TestLocalFolderDatabase(unittest.TestCase):
     def test_updates_with_set_operator(self):
         arbitrary_value = 7
         identifier = self.database.insert_one(self.arbitrary_upload)["_id"]
-        self.database.update_one(identifier, {"$set": {"log.x": arbitrary_value}})
-        self.assertEqual(self.database.get_content(identifier)["log"]["x"], arbitrary_value)
+        self.database.update_one(identifier, {"$set": {"log.uuid.content.x": arbitrary_value}})
+        self.assertEqual(self.database.get_content(identifier)["log"]["uuid"]["content"]["x"], arbitrary_value)
 
     def test_updates_with_id_in_dict(self):
         arbitrary_value = 7
         identifier = self.database.insert_one(self.arbitrary_upload)["_id"]
-        self.database.update_one({"_id": identifier}, {"$set": {"log.x": arbitrary_value}})
-        self.assertEqual(self.database.get_content(identifier)["log"]["x"], arbitrary_value)
+        self.database.update_one({"_id": identifier}, {"$set": {"log.uuid.content.x": arbitrary_value}})
+        self.assertEqual(self.database.get_content(identifier)["log"]["uuid"]["content"]["x"], arbitrary_value)
 
     def test_set_operator_understands_dot_notation(self):
         arbitrary_value = 7
         identifier = self.database.insert_one(metadata_file_from(dict(x={"y": 42})))["_id"]
-        self.database.update_one({"_id": identifier}, {"$set": {"log.x.y": arbitrary_value}})
-        self.assertEqual(self.database.get_content(identifier)["log"]["x"]["y"], arbitrary_value)
+        self.database.update_one({"_id": identifier}, {"$set": {"log.uuid.content.x.y": arbitrary_value}})
+        self.assertEqual(self.database.get_content(identifier)["log"]["uuid"]["content"]["x"]["y"], arbitrary_value)
 
     def test_set_operator_preserves_other_content_with_dot_notation(self):
         arbitrary_value = 7
         identifier = self.database.insert_one(metadata_file_from(dict(x={"y": 42, "z": arbitrary_value})))["_id"]
-        self.database.update_one({"_id": identifier}, {"$set": {"log.x.y": 4}})
-        self.assertEqual(self.database.get_content(identifier)["log"]["x"]["z"], arbitrary_value)
+        self.database.update_one({"_id": identifier}, {"$set": {"log.uuid.content.x.y": 4}})
+        self.assertEqual(self.database.get_content(identifier)["log"]["uuid"]["content"]["x"]["z"], arbitrary_value)
 
     def test_update_raises_for_any_other_operation_than_set(self):
         arbitrary_value = 7
         identifier = self.database.insert_one(metadata_file_from(dict(x={"y": 42})))["_id"]
         message = r"You have tried to update with operations {'\$pull'}. This is not yet implemented."
         with self.assertRaisesRegex(NotImplementedError, message):
-            self.database.update_one({"_id": identifier}, {"$pull": {"log.x.y": arbitrary_value}})
+            self.database.update_one({"_id": identifier}, {"$pull": {"log.uuid.content.x.y": arbitrary_value}})
 
     def test_creates_directories_as_needed(self):
         database = LocalFolderDatabase(self.my_dir / "this" / "does" / "not" / "exist")

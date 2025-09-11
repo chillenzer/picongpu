@@ -6,15 +6,20 @@ License: GPLv3+
 """
 
 from datetime import datetime
-from typing import Any, Literal, Iterable
+from typing import Literal, Iterable
 
+from picongpu.piccom.schema.log_entry import LogEntry
+from picongpu.piccom.schema.version import METADATA_FORMAT_VERSION, AnyMetadataFormatVersion
 from pydantic import BaseModel
 
 
 class MetadataFile(BaseModel):
     username: str
     date_time: datetime
-    log: Any
+    log: dict[str, LogEntry]
+    metadata_format_version: AnyMetadataFormatVersion = METADATA_FORMAT_VERSION
     upload_type: Literal["PIConGPU"] = "PIConGPU"
-    keywords: Iterable[str] = tuple()
+    # pydantic warns if this is a standard type like [] or tuple()
+    # using those in production should be fine
+    keywords: Iterable[str] = iter([])
     description: str = ""
