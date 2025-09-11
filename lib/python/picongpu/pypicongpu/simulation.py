@@ -5,23 +5,27 @@ Authors: Hannes Troepgen, Brian Edward Marre, Julian Lenz
 License: GPLv3+
 """
 
-from .grid import Grid3D
-from .laser import DispersivePulseLaser, FromOpenPMDPulseLaser, GaussianLaser, PlaneWaveLaser
-from .movingwindow import MovingWindow
-from .field_solver.DefaultSolver import Solver
-from . import species
-from . import util
-from . import output
-from .rendering import RenderedObject
+import datetime
+import logging
+import typing
+
+import typeguard
+
+from . import output, species, util
 from .customuserinput import InterfaceCustomUserInput
+from .field_solver.DefaultSolver import Solver
+from .grid import Grid3D
+from .laser import (
+    DispersivePulseLaser,
+    FromOpenPMDPulseLaser,
+    GaussianLaser,
+    PlaneWaveLaser,
+)
+from .movingwindow import MovingWindow
 from .output.plugin import Plugin
 from .output.timestepspec import TimeStepSpec
+from .rendering import RenderedObject
 from .walltime import Walltime
-
-import typing
-import typeguard
-import logging
-import datetime
 
 
 @typeguard.typechecked

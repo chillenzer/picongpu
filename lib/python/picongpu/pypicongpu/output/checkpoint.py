@@ -5,9 +5,9 @@ Authors: Masoud Afshari
 License: GPLv3+
 """
 
-import typing
+from os import PathLike
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Optional
 
 import typeguard
 
@@ -29,18 +29,21 @@ class Checkpoint(Plugin):
     restartFile = util.build_typesafe_property(Optional[str])
     restartChunkSize = util.build_typesafe_property(Optional[int])
     restartLoop = util.build_typesafe_property(Optional[int])
-    openPMD = util.build_typesafe_property(Optional[Dict])
+    openPMD = util.build_typesafe_property(Optional[dict])
 
     _name = "checkpoint"
 
-    @property
-    def results(self):
+    def result_info(self, result_directory: PathLike) -> list[dict[str, Any]]:
+        directory = Path(self.directory or "checkpoints")
+        if not directory.is_absolute():
+            directory = result_directory / directory
+
         openPMD_options = self.openPMD or {}
         file = Path(
             f"{self.file or 'checkpoint'}{openPMD_options.get('infix', '_%06T')}.{openPMD_options.get('ext', 'bp5')}"
         )
-        directory = self.directory or "checkpoints"
-        return {"checkpoint": file if file.is_absolute() else Path(directory) / file}
+
+        return [{"checkpoint": {"type": "local disk", "path": file if file.is_absolute() else directory / file}}]
 
     def __init__(self):
         "do nothing"
@@ -57,7 +60,7 @@ class Checkpoint(Plugin):
         if self.restartLoop is not None and self.restartLoop < 0:
             raise ValueError("restartLoop must be non-negative")
 
-    def _get_serialized(self) -> typing.Dict:
+    def _get_serialized(self) -> dict[str, Any]:
         """Return the serialized representation of the object."""
         self.check()
         serialized = {

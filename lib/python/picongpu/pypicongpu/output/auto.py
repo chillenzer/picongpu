@@ -5,11 +5,11 @@ Authors: Hannes Troepgen, Brian Edward Marre, Richard Pausch, Julian Lenz
 License: GPLv3+
 """
 
-from .timestepspec import TimeStepSpec
+import typeguard
+
 from .. import util
 from .plugin import Plugin
-
-import typeguard
+from .timestepspec import TimeStepSpec
 
 
 @typeguard.typechecked
