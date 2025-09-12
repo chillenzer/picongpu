@@ -11,6 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
+import numpy as np
 from picongpu.piccom.adaptor import LocalFolderAdaptor
 from picongpu.piccom.adaptor.local_folder_adaptor import _extract_parameters
 from picongpu.piccom.db import LocalFolderDatabase
@@ -86,3 +87,23 @@ class TestLocalFolderAdaptor(TestCase):
             self.assertEqual(_extract_parameters(self.database.get_content(i))["x"], arbitrary_content["x"])
         for i in set(objects.keys()) - set(found_ids):
             self.assertNotEqual(_extract_parameters(self.database.get_content(i))["x"], arbitrary_content["x"])
+
+    def test_handles_slices(self):
+        objects = populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
+
+        for s in [slice(0, 2), slice(4), slice(1, None), slice(None)]:
+            arbitrary_slice = {"x": s}
+            found_ids = self.adaptor.get_ids(parameters=arbitrary_slice)
+
+            # It felt somehow most straightforward to test set equality by inclusion in both directions:
+            for i in objects.keys():
+                content = _extract_parameters(self.database.get_content(i))
+                if i in found_ids:
+                    print(f"{s}: found: {content['x']}")
+                    self.assertLessEqual(content["x"], arbitrary_slice["x"].stop or np.inf)
+                    self.assertGreaterEqual(content["x"], arbitrary_slice["x"].start or -np.inf)
+                else:
+                    if "x" in content:
+                        print(f"{s}: not found: {content['x']}")
+                        self.assertGreater(content["x"], arbitrary_slice["x"].stop or -np.inf)
+                        self.assertLess(content["x"], arbitrary_slice["x"].start or np.inf)
