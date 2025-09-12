@@ -131,6 +131,10 @@ class TestLocalFolderDatabase(unittest.TestCase):
         identifier = database.insert_one(self.arbitrary_upload)["_id"]
         self.assertEqual(database.get_content(identifier)["_id"], identifier)
 
+    def test_find_without_arguments_returns_everything(self):
+        ids = [self.database.insert_one(self.arbitrary_upload)["_id"] for _ in range(3)]
+        self.assertSetEqual({obj["_id"] for obj in self.database.find()}, set(ids))
+
 
 if __name__ == "__main__":
     unittest.main()

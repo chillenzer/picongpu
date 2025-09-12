@@ -6,5 +6,4 @@ License: GPLv3+
 """
 
 # flake8: noqa
-from .db import *  # pyflakes.ignore
-from .adaptor import *  # pyflakes.ignore
+from .local_folder_adaptor import *  # pyflakes.ignore
