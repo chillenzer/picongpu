@@ -9,15 +9,15 @@ import datetime
 import json
 import logging
 import pathlib
-import platform
 import re
 import subprocess
 import tempfile
 import typing
 from functools import reduce
 from os import chdir, environ, path
-from pathlib import Path
 
+from picongpu.piccom.info import gather_compiletime_info
+from picongpu.piccom.info import gather_runtime_info
 import typeguard
 
 from picongpu.piccom import Communicator
@@ -70,41 +70,6 @@ def get_tmpdir_with_name(name, parent: str | None = None):
         dir_name = tmpdir
     assert not path.exists(dir_name), "freshly generated tmp dir name should not exist (anymore)"
     return dir_name
-
-
-def _platform_information():
-    return {"platform": platform.platform()} | platform.uname()._asdict()
-
-
-def _run_or_error_message(*args):
-    try:
-        return subprocess.run(*args, capture_output=True, text=True).stdout
-    except Exception:
-        return "failed"
-
-
-def _get_version_control_info():
-    my_path = str(pathlib.Path(__file__).parent)
-    return {
-        "log": _run_or_error_message(["git", "-C", my_path, "log", "-n", "1"]),
-        "status": _run_or_error_message(["git", "-C", my_path, "status"]),
-        "diff": _run_or_error_message(["git", "-C", my_path, "diff"]),
-    }
-
-
-def _gather_run_info(self):
-    return {
-        "platform": _platform_information(),
-        "expected results": {
-            f"{plugin._name}": content
-            for plugin in self.sim.plugins
-            if (content := plugin.result_info(Path(self.run_dir) / "simOutput"))
-        },
-    }
-
-
-def _gather_build_info(_):
-    return {"git": _get_version_control_info(), "platform": _platform_information()}
 
 
 @typeguard.typechecked
@@ -403,7 +368,12 @@ class Runner:
         self.__copy_template()
         self.__render_templates()
 
-    @logged_operation(action="build", capture_args=False, capture_result=False, info=_gather_build_info)
+    @logged_operation(
+        action="build",
+        capture_args=False,
+        capture_result=False,
+        info=lambda self: gather_compiletime_info(self).model_dump(),
+    )
     def build(self):
         """
         build (compile) picongpu-compatible input files
@@ -416,7 +386,9 @@ class Runner:
         )
         self.__build()
 
-    @logged_operation(action="run", capture_args=False, capture_result=False, info=_gather_run_info)
+    @logged_operation(
+        action="run", capture_args=False, capture_result=False, info=lambda self: gather_runtime_info(self).model_dump()
+    )
     def run(self):
         """
         run compiled picongpu simulation

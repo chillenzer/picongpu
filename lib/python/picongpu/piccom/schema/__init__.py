@@ -12,3 +12,4 @@ from .version import (
     AVAILABLE_METADATA_FORMAT_VERSIONS as AVAILABLE_METADATA_FORMAT_VERSIONS,
     AnyMetadataFormatVersion as AnyMetadataFormatVersion,
 )
+from . import info as info

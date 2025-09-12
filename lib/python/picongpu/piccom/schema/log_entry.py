@@ -12,6 +12,6 @@ from pydantic import BaseModel
 
 class LogEntry(BaseModel):
     action_name: str
-    update_of: str | None
+    update_of: str | None = None
     timestamp: datetime
     content: Any
