@@ -92,3 +92,6 @@ class LocalFolderDatabase:
         return self.insert_one(
             merge_into(self.get_content(identifier), interpret_dot_notation(operation["$set"])), identifier
         )
+
+    def find(self):
+        return [self.get_content(path.name.removesuffix(".json")) for path in self.directory.glob("*.json")]
