@@ -202,3 +202,9 @@ class TestLocalFolderAdaptor(TestCase):
                     set(map(lambda x: x[0], status_ids(ids, s2, "build")))
                 )
                 self.assertSetEqual(result, expected)
+
+    def test_filters_by_status_started(self):
+        populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
+        add_status(self.database)
+        result = self.adaptor.get_ids(status={"non-existent-stage": "started"})
+        self.assertSetEqual(set(result), set())
