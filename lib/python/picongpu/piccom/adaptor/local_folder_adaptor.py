@@ -67,9 +67,7 @@ def _get_status(i, log) -> LoggedStatus:
         return LoggedStatus.success
     if "failure" in statuses:
         return LoggedStatus.failure
-    if len(statuses) == 0:
-        return LoggedStatus.none
-    raise ValueError(f"Couldn't find out status of {i=} in {log=}.")
+    return LoggedStatus.none
 
 
 def _match_status(s1: LoggedStatus, s2: Status):
@@ -89,7 +87,9 @@ def _match_status(s1: LoggedStatus, s2: Status):
 
 def _has_status(log, status):
     actions = [
-        (map(lambda action: action[0], filter(lambda action: action[1]["action_name"] == name, log.items())), s)
+        # This needs to be a list because we need to eagerly bind the `name` variable in the loop.
+        # If the lambdas are lazily evaluated, they'll all bind to the last value of `name`.
+        (list(map(lambda action: action[0], filter(lambda action: action[1]["action_name"] == name, log.items()))), s)
         for name, s in status.items()
     ]
     return all(any(filter(lambda i: _match_status(_get_status(i, log), Status(s)), ids)) for ids, s in actions)
