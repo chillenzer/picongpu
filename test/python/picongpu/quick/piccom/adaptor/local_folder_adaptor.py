@@ -70,7 +70,7 @@ def events_in(database):
 
 
 def add_status(database):
-    statuses = cycle(["success", "failure", None])
+    statuses = cycle(["success", "failure", None, "failure", "success"])
     ids = {}
     for (obj_id, my_uuid, obj), s in zip(events_in(database), statuses):
         ids.setdefault(s, []).append((obj_id, obj["action_name"], my_uuid))
@@ -185,8 +185,20 @@ class TestLocalFolderAdaptor(TestCase):
 
     def test_filters_by_status_on_another_action(self):
         populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
-        populate_updates(self.database, [{"z": z} for z in range(123, 127)], action="build")
+        populate_updates(self.database, {"z": 123}, action="build")
         ids = add_status(self.database)
         for s in ["success", "failure", "started", "ended", "running"]:
             result = self.adaptor.get_ids(status={"build": s})
             self.assertSetEqual(set(result), set(map(lambda x: x[0], status_ids(ids, s, "build"))))
+
+    def test_filters_by_status_on_multiple_actions(self):
+        populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
+        populate_updates(self.database, {"z": 123}, action="build")
+        ids = add_status(self.database)
+        for s1 in ["success", "failure", "started", "ended", "running"]:
+            for s2 in ["success", "failure", "started", "ended", "running"]:
+                result = set(self.adaptor.get_ids(status={"generate_input_files": s1, "build": s2}))
+                expected = set(map(lambda x: x[0], status_ids(ids, s1, "generate_input_files"))).intersection(
+                    set(map(lambda x: x[0], status_ids(ids, s2, "build")))
+                )
+                self.assertSetEqual(result, expected)
