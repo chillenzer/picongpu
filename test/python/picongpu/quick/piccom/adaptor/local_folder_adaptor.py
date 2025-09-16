@@ -10,6 +10,7 @@ from logging import warning
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
+from itertools import cycle
 
 import numpy as np
 from picongpu.piccom.adaptor import LocalFolderAdaptor
@@ -40,6 +41,43 @@ def populate(database, parameters=None):
         )["_id"]: entry
         for u, entry in log_entries.items()
     }
+
+
+def add_status(database):
+    statuses = cycle(["success", "failure", None])
+    ids = {}
+    for obj, s in zip(database.find(), statuses):
+        ids.setdefault(s, []).append(obj["_id"])
+        my_uuid = next(iter(obj["log"].keys()))
+        if s is not None:
+            database.update_one(
+                obj["_id"],
+                {
+                    "$set": {
+                        f"log.{my_uuid}u": {
+                            "update_of": my_uuid,
+                            "action_name": s,
+                            "timestamp": datetime.now(timezone.utc),
+                            "content": {},
+                        }
+                    }
+                },
+            )
+    return ids
+
+
+def status_ids(ids, status):
+    if status == "success":
+        return ids["success"]
+    if status == "failure":
+        return ids["failure"]
+    if status == "ended":
+        return ids["success"] + ids["failure"]
+    if status == "started":
+        return ids["success"] + ids["failure"] + ids[None]
+    if status == "running":
+        return ids[None]
+    raise ValueError(f"Unknown {status=} requested.")
 
 
 class TestLocalFolderAdaptor(TestCase):
@@ -99,11 +137,16 @@ class TestLocalFolderAdaptor(TestCase):
             for i in objects.keys():
                 content = _extract_parameters(self.database.get_content(i))
                 if i in found_ids:
-                    print(f"{s}: found: {content['x']}")
                     self.assertLessEqual(content["x"], arbitrary_slice["x"].stop or np.inf)
                     self.assertGreaterEqual(content["x"], arbitrary_slice["x"].start or -np.inf)
                 else:
                     if "x" in content:
-                        print(f"{s}: not found: {content['x']}")
                         self.assertGreater(content["x"], arbitrary_slice["x"].stop or -np.inf)
                         self.assertLess(content["x"], arbitrary_slice["x"].start or np.inf)
+
+    def test_filters_by_status(self):
+        populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
+        ids = add_status(self.database)
+        for s in ["success", "failure", "started", "ended", "running"]:
+            result = self.adaptor.get_ids(status={"generate_input_files": s})
+            self.assertSetEqual(set(result), set(status_ids(ids, s)))
