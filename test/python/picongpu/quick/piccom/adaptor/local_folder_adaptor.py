@@ -43,18 +43,43 @@ def populate(database, parameters=None):
     }
 
 
-def add_status(database):
-    statuses = cycle(["success", "failure", None])
-    ids = {}
-    for obj, s in zip(database.find(), statuses):
-        ids.setdefault(s, []).append(obj["_id"])
+def populate_updates(database, parameters, action):
+    result = []
+    for obj in database.find():
         my_uuid = next(iter(obj["log"].keys()))
-        if s is not None:
+        result.append(
             database.update_one(
                 obj["_id"],
                 {
                     "$set": {
-                        f"log.{my_uuid}u": {
+                        f"log.{my_uuid}a": {
+                            "update_of": my_uuid,
+                            "action_name": action,
+                            "timestamp": datetime.now(timezone.utc),
+                            "content": parameters,
+                        }
+                    }
+                },
+            )
+        )
+    return result
+
+
+def events_in(database):
+    return sum(map(lambda obj: list(map(lambda x: (obj["_id"],) + x, obj["log"].items())), database.find()), [])
+
+
+def add_status(database):
+    statuses = cycle(["success", "failure", None])
+    ids = {}
+    for (obj_id, my_uuid, obj), s in zip(events_in(database), statuses):
+        ids.setdefault(s, []).append((obj_id, obj["action_name"], my_uuid))
+        if s is not None:
+            database.update_one(
+                obj_id,
+                {
+                    "$set": {
+                        f"log.{my_uuid}s": {
                             "update_of": my_uuid,
                             "action_name": s,
                             "timestamp": datetime.now(timezone.utc),
@@ -66,18 +91,25 @@ def add_status(database):
     return ids
 
 
-def status_ids(ids, status):
+def status_ids(ids, status, action=None):
+    result = None
     if status == "success":
-        return ids["success"]
+        result = ids["success"]
     if status == "failure":
-        return ids["failure"]
+        result = ids["failure"]
     if status == "ended":
-        return ids["success"] + ids["failure"]
+        result = ids["success"] + ids["failure"]
     if status == "started":
-        return ids["success"] + ids["failure"] + ids[None]
+        result = ids["success"] + ids["failure"] + ids[None]
     if status == "running":
-        return ids[None]
-    raise ValueError(f"Unknown {status=} requested.")
+        result = ids[None]
+    if result is None:
+        raise ValueError(f"Unknown {status=} requested.")
+
+    if action is not None:
+        result = list(filter(lambda x: x[1] == action, result))
+
+    return result
 
 
 class TestLocalFolderAdaptor(TestCase):
@@ -149,4 +181,12 @@ class TestLocalFolderAdaptor(TestCase):
         ids = add_status(self.database)
         for s in ["success", "failure", "started", "ended", "running"]:
             result = self.adaptor.get_ids(status={"generate_input_files": s})
-            self.assertSetEqual(set(result), set(status_ids(ids, s)))
+            self.assertSetEqual(set(result), set(map(lambda x: x[0], status_ids(ids, s))))
+
+    def test_filters_by_status_on_another_action(self):
+        populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
+        populate_updates(self.database, [{"z": z} for z in range(123, 127)], action="build")
+        ids = add_status(self.database)
+        for s in ["success", "failure", "started", "ended", "running"]:
+            result = self.adaptor.get_ids(status={"build": s})
+            self.assertSetEqual(set(result), set(map(lambda x: x[0], status_ids(ids, s, "build"))))
