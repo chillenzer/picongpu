@@ -208,3 +208,16 @@ class TestLocalFolderAdaptor(TestCase):
         add_status(self.database)
         result = self.adaptor.get_ids(status={"non-existent-stage": "started"})
         self.assertSetEqual(set(result), set())
+
+    def test_get_parameter_sets(self):
+        objects = populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
+        # we add a bit of noise here in order to ensure that the algorithm can handle that:
+        populate_updates(self.database, {"z": 123}, action="build")
+        add_status(self.database)
+
+        result = self.adaptor.get_parameter_sets()
+
+        for o in objects.values():
+            self.assertTrue(o in result)
+        for o in result:
+            self.assertTrue(o in objects.values())
