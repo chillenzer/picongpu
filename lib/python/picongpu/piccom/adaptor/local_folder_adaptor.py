@@ -177,7 +177,10 @@ def _retrievable_to_function(retrievable):
     if isinstance(retrievable, Parameter):
         return lambda obj: retrievable.extract_from(_extract_parameters(obj))
     if is_iterable(retrievable):
-        return lambda obj: [_retrievable_to_function(x)(obj) for x in retrievable]
+        if hasattr(retrievable, "items"):
+            return lambda obj: {key: _retrievable_to_function(r)(obj) for key, r in retrievable.items()}
+        else:
+            return lambda obj: [_retrievable_to_function(x)(obj) for x in retrievable]
     raise ValueError(f"Normalising {retrievable=} to a function reached an unreachable branch.")
 
 

@@ -261,3 +261,7 @@ class TestLocalFolderAdaptor(TestCase):
             self.assertEqual(self.adaptor.get(Parameter("y/z"), ids=[i])[0], content["y"]["z"])
             self.assertEqual(self.adaptor.get(["x", "y"], ids=[i])[0], [content["x"], content["y"]])
             self.assertEqual(self.adaptor.get(["ids", "y/a"], ids=[i])[0], [i, content["y"]["a"]])
+            self.assertEqual(
+                self.adaptor.get({"id": "ids", "c": {"a": "y/a", "l": ["x", "y/z"]}}, ids=[i])[0],
+                {"id": i, "c": {"a": "b", "l": [content["x"], content["y"]["z"]]}},
+            )
