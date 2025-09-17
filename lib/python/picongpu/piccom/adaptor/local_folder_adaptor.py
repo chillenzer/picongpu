@@ -154,6 +154,14 @@ class Parameter:
         return obj
 
 
+def is_iterable(obj):
+    try:
+        iter(obj)
+        return True
+    except TypeError:
+        return False
+
+
 def _retrievable_to_function(retrievable):
     if isinstance(retrievable, str):
         try:
@@ -168,6 +176,8 @@ def _retrievable_to_function(retrievable):
         return _extract_parameters
     if isinstance(retrievable, Parameter):
         return lambda obj: retrievable.extract_from(_extract_parameters(obj))
+    if is_iterable(retrievable):
+        return lambda obj: [_retrievable_to_function(x)(obj) for x in retrievable]
     raise ValueError(f"Normalising {retrievable=} to a function reached an unreachable branch.")
 
 
@@ -200,13 +210,17 @@ def _get_batched_information(database, information, batch_size: int | None = Non
     )
 
 
+def InstanceOrIterableOf(t):
+    return t | Iterable[t]
+
+
 class LocalFolderAdaptor:
     def __init__(self, database):
         self.database = database
 
     def get(
         self,
-        retrievable: Retrievable | Parameter | str,
+        retrievable: InstanceOrIterableOf(Retrievable | Parameter | str),
         return_as_iterators: bool = False,
         batch_size: int | None = None,
         **kwargs,
