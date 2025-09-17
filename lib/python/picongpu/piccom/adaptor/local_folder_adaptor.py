@@ -224,8 +224,9 @@ class LocalFolderAdaptor:
     def get(
         self,
         retrievable: InstanceOrIterableOf(Retrievable | Parameter | str),
-        return_as_iterators: bool = False,
+        *,
         batch_size: int | None = None,
+        return_as_iterators: bool = False,
         **kwargs,
     ):
         if not return_as_iterators:
