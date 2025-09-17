@@ -138,23 +138,23 @@ class TestLocalFolderAdaptor(TestCase):
 
     def test_gets_all_ids(self):
         ids = populate(self.database).keys()
-        self.assertSetEqual(set(ids), set(self.adaptor.get_ids()))
+        self.assertSetEqual(set(ids), set(self.adaptor.get("ids")))
 
     def test_handles_exact_parameter_matches(self):
         objects = populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
         arbitrary_id, arbitrary_content = next(iter(objects.items()))
-        self.assertSequenceEqual(self.adaptor.get_ids(parameters=arbitrary_content), [arbitrary_id])
+        self.assertSequenceEqual(self.adaptor.get("ids", parameters=arbitrary_content), [arbitrary_id])
 
     def test_returns_empty_list_if_no_match(self):
         populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
         arbitrary_content = {"p": "asdf"}
-        self.assertSequenceEqual(self.adaptor.get_ids(parameters=arbitrary_content), [])
+        self.assertSequenceEqual(self.adaptor.get("ids", parameters=arbitrary_content), [])
 
     def test_handles_multiple_parameter_matches(self):
         objects = populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
         arbitrary_content = next(iter(objects.values()))
         arbitrary_content.pop("y")
-        found_ids = self.adaptor.get_ids(parameters=arbitrary_content)
+        found_ids = self.adaptor.get("ids", parameters=arbitrary_content)
 
         # It felt somehow most straightforward to test set equality by inclusion in both directions:
         for i in found_ids:
@@ -167,7 +167,7 @@ class TestLocalFolderAdaptor(TestCase):
 
         for s in [slice(0, 2), slice(4), slice(1, None), slice(None)]:
             arbitrary_slice = {"x": s}
-            found_ids = self.adaptor.get_ids(parameters=arbitrary_slice)
+            found_ids = self.adaptor.get("ids", parameters=arbitrary_slice)
 
             # It felt somehow most straightforward to test set equality by inclusion in both directions:
             for i in objects.keys():
@@ -184,7 +184,7 @@ class TestLocalFolderAdaptor(TestCase):
         populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
         ids = add_status(self.database)
         for s in ["success", "failure", "started", "ended", "running"]:
-            result = self.adaptor.get_ids(status={"generate_input_files": s})
+            result = self.adaptor.get("ids", status={"generate_input_files": s})
             self.assertSetEqual(set(result), set(map(lambda x: x[0], status_ids(ids, s))))
 
     def test_filters_by_status_on_another_action(self):
@@ -192,7 +192,7 @@ class TestLocalFolderAdaptor(TestCase):
         populate_updates(self.database, {"z": 123}, action="build")
         ids = add_status(self.database)
         for s in ["success", "failure", "started", "ended", "running"]:
-            result = self.adaptor.get_ids(status={"build": s})
+            result = self.adaptor.get("ids", status={"build": s})
             self.assertSetEqual(set(result), set(map(lambda x: x[0], status_ids(ids, s, "build"))))
 
     def test_filters_by_status_on_multiple_actions(self):
@@ -201,7 +201,7 @@ class TestLocalFolderAdaptor(TestCase):
         ids = add_status(self.database)
         for s1 in ["success", "failure", "started", "ended", "running"]:
             for s2 in ["success", "failure", "started", "ended", "running"]:
-                result = set(self.adaptor.get_ids(status={"generate_input_files": s1, "build": s2}))
+                result = set(self.adaptor.get("ids", status={"generate_input_files": s1, "build": s2}))
                 expected = set(map(lambda x: x[0], status_ids(ids, s1, "generate_input_files"))).intersection(
                     set(map(lambda x: x[0], status_ids(ids, s2, "build")))
                 )
@@ -210,7 +210,7 @@ class TestLocalFolderAdaptor(TestCase):
     def test_filters_by_status_started(self):
         populate(self.database, [{"x": x, "y": y} for x in range(7) for y in range(42, 49)])
         add_status(self.database)
-        result = self.adaptor.get_ids(status={"non-existent-stage": "started"})
+        result = self.adaptor.get("ids", status={"non-existent-stage": "started"})
         self.assertSetEqual(set(result), set())
 
     def test_get_parameter_sets(self):
@@ -219,7 +219,7 @@ class TestLocalFolderAdaptor(TestCase):
         populate_updates(self.database, {"z": 123}, action="build")
         add_status(self.database)
 
-        result = self.adaptor.get_parameter_sets()
+        result = self.adaptor.get("parameters")
 
         # dictionaries are not hashable, so we can't use a set comparison here
         for o in objects.values():
@@ -230,7 +230,7 @@ class TestLocalFolderAdaptor(TestCase):
     def test_batch_size(self):
         objects = populate(self.database)
         for batch_size in range(1, len(objects) + 3):
-            result = self.adaptor.get_ids(batch_size=batch_size)
+            result = self.adaptor.get("ids", batch_size=batch_size)
             self.assertEqual(len(_flatten(result)), len(objects))
             for batch in result[:-1]:
                 self.assertEqual(len(batch), batch_size)
@@ -238,8 +238,16 @@ class TestLocalFolderAdaptor(TestCase):
 
     def test_ordering(self):
         populate(self.database)
-        results = [self.adaptor.get_ids(ordering="random") for _ in range(10)]
+        results = [self.adaptor.get("ids", ordering="random") for _ in range(10)]
         # all sets of IDs are identical, a few hoops to jump through to find a hashable type
         self.assertEqual(len(set(map(tuple, map(sorted, results)))), 1)
         # they are ordered differently (up to a very small chance of bad luch here)
         self.assertGreater(len(set(map(tuple, results))), 1)
+
+    def test_get_by_ids(self):
+        ids = populate(self.database).keys()
+        for i in ids:
+            self.assertEqual(self.adaptor.get("ids", ids=[i]), [i])
+        for i1 in ids:
+            for i2 in ids:
+                self.assertEqual(set(self.adaptor.get("ids", ids=[i1, i2])), {i1, i2})
