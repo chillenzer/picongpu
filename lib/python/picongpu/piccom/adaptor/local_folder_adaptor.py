@@ -109,7 +109,18 @@ class LocalFolderAdaptor:
     def __init__(self, database):
         self.database = database
 
-    def get_ids(self, parameters: dict[str, Any] | None = None, status: dict[str, str] | None = None):
-        return list(
-            map(_extract_id, _filter_by_parameters(_filter_by_status(self.database.find(), status), parameters))
-        )
+    def _get_full_metadata(self, parameters: dict[str, Any] | None = None, status: dict[str, str] | None = None):
+        # returns an iterator which might be surprising to work with if you don't expect it
+        return _filter_by_parameters(_filter_by_status(self.database.find(), status), parameters)
+
+    def get_full_metadata(self, parameters: dict[str, Any] | None = None, status: dict[str, str] | None = None):
+        # public interface writes a list into memory, so people don't accidentally exhaust the iterator
+        return list(self._get_full_metadata(parameters, status))
+
+    def get_ids(self, parameters: dict[str, Any] | None = None, status: dict[str, str] | None = None) -> list[str]:
+        return list(map(_extract_id, self._get_full_metadata(parameters, status)))
+
+    def get_parameter_sets(
+        self, parameters: dict[str, Any] | None = None, status: dict[str, str] | None = None
+    ) -> list[str]:
+        return list(map(_extract_parameters, self._get_full_metadata(parameters, status)))
