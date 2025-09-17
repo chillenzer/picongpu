@@ -14,6 +14,14 @@ from picongpu.piccom.schema.info import RuntimeInfo
 from picongpu.piccom.schema.metadata_file import MetadataFile
 
 
+class Status(Enum):
+    success = "success"
+    failure = "failure"
+    started = "started"
+    running = "running"
+    ended = "ended"
+
+
 def _contains_single_value(lhs, rhs):
     if isinstance(rhs, slice):
         return lhs >= (rhs.start or -np.inf) and lhs <= (rhs.stop or np.inf)
@@ -24,13 +32,13 @@ def _contains(content, parameters):
     return all(key in content and _contains_single_value(content[key], value) for key, value in parameters.items())
 
 
-ACTION_NAME = {"parameters": "generate_input_files", "runtime_info": "run"}
+_ACTION_NAME = {"parameters": "generate_input_files", "runtime_info": "run"}
 
 
 def _extract(content: MetadataFile | dict, what) -> dict[str, Any]:
     if isinstance(content, dict):
         return _extract_parameters(MetadataFile.model_validate(content))
-    return next(filter(lambda x: x.action_name == ACTION_NAME[what], content.log.values())).content
+    return next(filter(lambda x: x.action_name == _ACTION_NAME[what], content.log.values())).content
 
 
 def _extract_parameters(content: MetadataFile | dict) -> dict[str, Any]:
@@ -47,41 +55,33 @@ def _filter_by_parameters(objs, parameters):
     return filter(lambda obj: _contains(_extract_parameters(obj), parameters), objs)
 
 
-class LoggedStatus(Enum):
+class _LoggedStatus(Enum):
     success = "success"
     failure = "failure"
     none = None
 
 
-class Status(Enum):
-    success = "success"
-    failure = "failure"
-    started = "started"
-    running = "running"
-    ended = "ended"
-
-
-def _get_status(i, log) -> LoggedStatus:
+def _get_status(i, log) -> _LoggedStatus:
     statuses = set(map(lambda obj: obj["action_name"], filter(lambda obj: obj["update_of"] == i, log.values())))
     if "success" in statuses:
-        return LoggedStatus.success
+        return _LoggedStatus.success
     if "failure" in statuses:
-        return LoggedStatus.failure
-    return LoggedStatus.none
+        return _LoggedStatus.failure
+    return _LoggedStatus.none
 
 
-def _match_status(s1: LoggedStatus, s2: Status):
+def _match_status(s1: _LoggedStatus, s2: Status):
     if s2 == Status.success:
-        return s1 == LoggedStatus.success
+        return s1 == _LoggedStatus.success
     if s2 == Status.failure:
-        return s1 == LoggedStatus.failure
+        return s1 == _LoggedStatus.failure
     if s2 == Status.started:
         # We have got an s1, so it has sure started at some point.
         return True
     if s2 == Status.running:
-        return s1 == LoggedStatus.none
+        return s1 == _LoggedStatus.none
     if s2 == Status.ended:
-        return s1 != LoggedStatus.none
+        return s1 != _LoggedStatus.none
     raise ValueError(f"Matching {s1=} and {s2=} ended up in an unreachable code path.")
 
 
