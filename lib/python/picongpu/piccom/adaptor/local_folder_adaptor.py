@@ -152,7 +152,7 @@ _RETRIEVABLE_TO_FUNCTION = {
 
 
 class AllIds:
-    def __contains__(self, *args):
+    def __contains__(self, _):
         return True
 
 
@@ -160,34 +160,33 @@ def _filter_by_ids(objs, ids):
     return filter(lambda obj: _extract_id(obj) in ids, objs)
 
 
+def _get_full_metadata(
+    database,
+    ids: Iterable[str] | None = None,
+    parameters: dict[str, Any] | None = None,
+    status: dict[str, str] | None = None,
+    ordering: Ordering = Ordering.arbitrary,
+):
+    return _apply_ordering(
+        _filter_by_parameters(_filter_by_status(_filter_by_ids(database.find(), ids or AllIds()), status), parameters),
+        Ordering(ordering),
+    )
+
+
+def _get_batched_information(database, information, batch_size: int | None = None, **kwargs):
+    return _apply_batch_size(
+        map(information, _get_full_metadata(database, **kwargs)),
+        batch_size,
+    )
+
+
 class LocalFolderAdaptor:
     def __init__(self, database):
         self.database = database
 
-    def _get_full_metadata(
-        self,
-        ids: Iterable[str] | None = None,
-        parameters: dict[str, Any] | None = None,
-        status: dict[str, str] | None = None,
-        ordering: Ordering = Ordering.arbitrary,
-    ):
-        return _apply_ordering(
-            _filter_by_parameters(
-                _filter_by_status(_filter_by_ids(self.database.find(), ids or AllIds()), status), parameters
-            ),
-            Ordering(ordering),
-        )
-
-    def _get_batched_information(self, information, *args, batch_size: int | None = None, **kwargs):
-        return _apply_batch_size(
-            map(information, self._get_full_metadata(*args, **kwargs)),
-            batch_size,
-        )
-
     def get(
         self,
         retrievable: Retrievable | str,
-        *args,
         return_as_iterators: bool = False,
         batch_size: int | None = None,
         **kwargs,
@@ -195,9 +194,9 @@ class LocalFolderAdaptor:
         retrievable = Retrievable(retrievable)
         if not return_as_iterators:
             return _make_list(
-                self.get(retrievable, *args, return_as_iterators=True, batch_size=batch_size, **kwargs),
+                self.get(retrievable, return_as_iterators=True, batch_size=batch_size, **kwargs),
                 0 if batch_size is None else 1,
             )
-        return self._get_batched_information(
-            _RETRIEVABLE_TO_FUNCTION[retrievable], *args, batch_size=batch_size, **kwargs
+        return _get_batched_information(
+            self.database, _RETRIEVABLE_TO_FUNCTION[retrievable], batch_size=batch_size, **kwargs
         )
