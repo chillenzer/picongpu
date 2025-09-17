@@ -112,6 +112,10 @@ def status_ids(ids, status, action=None):
     return result
 
 
+def _flatten(my_list):
+    return sum(my_list, [])
+
+
 class TestLocalFolderAdaptor(TestCase):
     def setUp(self) -> None:
         try:
@@ -217,7 +221,25 @@ class TestLocalFolderAdaptor(TestCase):
 
         result = self.adaptor.get_parameter_sets()
 
+        # dictionaries are not hashable, so we can't use a set comparison here
         for o in objects.values():
             self.assertTrue(o in result)
         for o in result:
             self.assertTrue(o in objects.values())
+
+    def test_batch_size(self):
+        objects = populate(self.database)
+        for batch_size in range(1, len(objects) + 3):
+            result = self.adaptor.get_ids(batch_size=batch_size)
+            self.assertEqual(len(_flatten(result)), len(objects))
+            for batch in result[:-1]:
+                self.assertEqual(len(batch), batch_size)
+            self.assertLessEqual(len(result[-1]), batch_size)
+
+    def test_ordering(self):
+        populate(self.database)
+        results = [self.adaptor.get_ids(ordering="random") for _ in range(10)]
+        # all sets of IDs are identical, a few hoops to jump through to find a hashable type
+        self.assertEqual(len(set(map(tuple, map(sorted, results)))), 1)
+        # they are ordered differently (up to a very small chance of bad luch here)
+        self.assertGreater(len(set(map(tuple, results))), 1)

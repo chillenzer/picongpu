@@ -7,6 +7,8 @@ License: GPLv3+
 
 from enum import Enum
 from typing import Any
+from random import sample
+from itertools import batched
 
 import numpy as np
 
@@ -105,22 +107,73 @@ def _extract_id(obj):
     return obj["_id"]
 
 
+class Ordering(Enum):
+    arbitrary = "arbitrary"
+    random = "random"
+
+
+def _apply_ordering(objs, ordering: Ordering):
+    if ordering == Ordering.arbitrary:
+        return objs
+    if ordering == Ordering.random:
+        # for random access we actually have to hold a copy in memory
+        objs = list(objs)
+        return sample(objs, k=len(objs))
+    raise ValueError(f"Applying the {ordering=} to {objs=} reached an unreachable branch.")
+
+
+def _apply_batch_size(objs, batch_size: int | None):
+    return objs if batch_size is None else batched(objs, batch_size)
+
+
+def _make_list(iterable, recursion_depth: int = 0):
+    if recursion_depth < 0:
+        raise ValueError("You're running into an infinite recursion because {recursion_depth=} < 0.")
+    if recursion_depth == 0:
+        return list(iterable)
+    return [_make_list(i, recursion_depth - 1) for i in iterable]
+
+
+def _extract_full_metadata(obj):
+    return obj
+
+
 class LocalFolderAdaptor:
     def __init__(self, database):
         self.database = database
 
-    def _get_full_metadata(self, parameters: dict[str, Any] | None = None, status: dict[str, str] | None = None):
-        # returns an iterator which might be surprising to work with if you don't expect it
-        return _filter_by_parameters(_filter_by_status(self.database.find(), status), parameters)
+    def _get_full_metadata(
+        self,
+        parameters: dict[str, Any] | None = None,
+        status: dict[str, str] | None = None,
+        ordering: Ordering = Ordering.arbitrary,
+    ):
+        # might return an iterator which could be surprising to work with if you don't expect it
+        return _apply_ordering(
+            _filter_by_parameters(_filter_by_status(self.database.find(), status), parameters), Ordering(ordering)
+        )
 
-    def get_full_metadata(self, parameters: dict[str, Any] | None = None, status: dict[str, str] | None = None):
+    def _get_batched_information(self, information, *args, batch_size: int | None = None, **kwargs):
+        return _apply_batch_size(
+            map(information, self._get_full_metadata(*args, **kwargs)),
+            batch_size,
+        )
+
+    def get_full_metadata(self, *args, batch_size: int | None = None, **kwargs):
         # public interface writes a list into memory, so people don't accidentally exhaust the iterator
-        return list(self._get_full_metadata(parameters, status))
+        return _make_list(
+            self._get_batched_information(_extract_full_metadata, *args, batch_size=batch_size, **kwargs),
+            0 if batch_size is None else 1,
+        )
 
-    def get_ids(self, parameters: dict[str, Any] | None = None, status: dict[str, str] | None = None) -> list[str]:
-        return list(map(_extract_id, self._get_full_metadata(parameters, status)))
+    def get_ids(self, *args, batch_size: int | None = None, **kwargs):
+        return _make_list(
+            self._get_batched_information(_extract_id, *args, batch_size=batch_size, **kwargs),
+            0 if batch_size is None else 1,
+        )
 
-    def get_parameter_sets(
-        self, parameters: dict[str, Any] | None = None, status: dict[str, str] | None = None
-    ) -> list[str]:
-        return list(map(_extract_parameters, self._get_full_metadata(parameters, status)))
+    def get_parameter_sets(self, *args, batch_size: int | None = None, **kwargs):
+        return _make_list(
+            self._get_batched_information(_extract_parameters, *args, batch_size=batch_size, **kwargs),
+            0 if batch_size is None else 1,
+        )
