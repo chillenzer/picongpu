@@ -144,11 +144,31 @@ class Retrievable(Enum):
     parameters = "parameters"
 
 
-_RETRIEVABLE_TO_FUNCTION = {
-    Retrievable.full_metadata: _extract_full_metadata,
-    Retrievable.ids: _extract_id,
-    Retrievable.parameters: _extract_parameters,
-}
+class Parameter:
+    def __init__(self, name):
+        self.name = name
+
+    def extract_from(self, obj):
+        for key in self.name.split("/"):
+            obj = obj[key]
+        return obj
+
+
+def _retrievable_to_function(retrievable):
+    if isinstance(retrievable, str):
+        try:
+            return _retrievable_to_function(Retrievable(retrievable))
+        except ValueError:
+            return _retrievable_to_function(Parameter(retrievable))
+    if retrievable == Retrievable.full_metadata:
+        return _extract_full_metadata
+    if retrievable == Retrievable.ids:
+        return _extract_id
+    if retrievable == Retrievable.parameters:
+        return _extract_parameters
+    if isinstance(retrievable, Parameter):
+        return lambda obj: retrievable.extract_from(_extract_parameters(obj))
+    raise ValueError(f"Normalising {retrievable=} to a function reached an unreachable branch.")
 
 
 class AllIds:
@@ -186,17 +206,16 @@ class LocalFolderAdaptor:
 
     def get(
         self,
-        retrievable: Retrievable | str,
+        retrievable: Retrievable | Parameter | str,
         return_as_iterators: bool = False,
         batch_size: int | None = None,
         **kwargs,
     ):
-        retrievable = Retrievable(retrievable)
         if not return_as_iterators:
             return _make_list(
                 self.get(retrievable, return_as_iterators=True, batch_size=batch_size, **kwargs),
                 0 if batch_size is None else 1,
             )
         return _get_batched_information(
-            self.database, _RETRIEVABLE_TO_FUNCTION[retrievable], batch_size=batch_size, **kwargs
+            self.database, _retrievable_to_function(retrievable), batch_size=batch_size, **kwargs
         )
