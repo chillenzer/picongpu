@@ -235,6 +235,72 @@ class LocalFolderAdaptor:
         return_as_iterators: bool = False,
         **kwargs,
     ):
+        """
+        Extract some information from the database.
+
+        This is a convenience interface to search our metadata database
+        and extract information abiding by given constraints.
+
+        What does the output look like?
+        -------------------------------
+        The returned information is always an iterable containing every match.
+        By default, it is a list but you can use `return_as_iterators=True` to make it an iterator.
+        In some scenarios, this avoids holding the data in memory which might be faster
+        at the expense of it getting exhausted upon use.
+
+        The returned information is controlled via the `retrievable`.
+        Basic atoms of information are either
+            - a `Retrievable`: some high-level information (like "parameters" or "ids") or
+            - a `Parameter`: some specific parameter like "grid/cell_size_x_si"
+
+        The code tries to convert to those from a given string,
+        so you normally don't need to use the types explicitly.
+
+        The structure of the `retrievable` determines how the information from each dataset is represented.
+        You can provide iterables, including dictionaries, and the structure will be applied
+        to the output from each datasets. For example:
+
+            retrievable = {
+                'my_id': 'ids',  # This converts to a Retrievable.
+                'some_parameters': {
+                    'x': 'grid/cell_size_x_si',  # This converts to a parameter.
+                    't': 'time_step_size',  # This converts to a parameter.
+                    },
+                }
+
+        could lead to an entry of output like
+
+            {
+                'my_id': 'asdfojlkadflkj',  # Some UUID.
+                'some_parameters': {
+                    'x': 1.0e-15,  # Looked up the nested parameter's value.
+                    't': 1.7e-16,  # Looked up the top-level parameter's value.
+                },
+            }
+
+        and similarly any non-dict-like iterables will result in lists with the corresponding information.
+
+        What does the output contain?
+        -----------------------------
+        The content is always an iterable of information from none, 1 or more matching parameter sets.
+        If `batch_size` is given, it will be an iterable of batches of those.
+
+        Constraints can be
+            - `ids`: Object ids of metadata sets (probably obtained from a separate call to `get`)
+            - `parameters`: A dictionary of "parameter", `value` pairs
+                            where value can either either denote an exact match
+                            or a range if it is a slice.
+            - `status`: A dictionary of "stage": "status" where "status" is a `Status`.
+
+        How is the output ordered?
+        --------------------------
+        By default, the ordering is undefined and determined by the order in which the database provides the information.
+        You can explicitly request a random ordering or provide a function of the parameter dictionary returning a float.
+        In the latter case, the data will be sorted in ascending order with respect to these floats.
+
+        Combining a clever ordering with a batch_size can produce interesting effects like "find the closest parameter set"
+        (for a definition of "closest" as given by the function).
+        """
         if not return_as_iterators:
             return _make_list(
                 self.get(retrievable, return_as_iterators=True, batch_size=batch_size, **kwargs),
