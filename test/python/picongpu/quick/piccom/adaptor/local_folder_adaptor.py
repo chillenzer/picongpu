@@ -14,7 +14,7 @@ from itertools import cycle
 
 import numpy as np
 from picongpu.piccom.adaptor import LocalFolderAdaptor
-from picongpu.piccom.adaptor.local_folder_adaptor import _extract_parameters
+from picongpu.piccom.adaptor.local_folder_adaptor import Parameter, _extract_parameters
 from picongpu.piccom.db import LocalFolderDatabase
 from picongpu.piccom.schema import LogEntry, MetadataFile
 
@@ -251,3 +251,10 @@ class TestLocalFolderAdaptor(TestCase):
         for i1 in ids:
             for i2 in ids:
                 self.assertEqual(set(self.adaptor.get("ids", ids=[i1, i2])), {i1, i2})
+
+    def test_get_parameter_value(self):
+        objects = populate(self.database, [{"x": x, "y": {"z": y, "a": "b"}} for x in range(7) for y in range(42, 49)])
+        for i, content in objects.items():
+            self.assertEqual(self.adaptor.get(Parameter("x"), ids=[i])[0], content["x"])
+            self.assertEqual(self.adaptor.get(Parameter("y"), ids=[i])[0], content["y"])
+            self.assertEqual(self.adaptor.get(Parameter("y/z"), ids=[i])[0], content["y"]["z"])
