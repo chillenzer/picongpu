@@ -265,3 +265,14 @@ class TestLocalFolderAdaptor(TestCase):
                 self.adaptor.get({"id": "ids", "c": {"a": "y/a", "l": ["x", "y/z"]}}, ids=[i])[0],
                 {"id": i, "c": {"a": "b", "l": [content["x"], content["y"]["z"]]}},
             )
+
+    def test_ordering_by_metric(self):
+        populate(self.database, [{"x": x, "y": {"z": y, "a": "b"}} for x in range(7) for y in range(42, 49)])
+
+        # This is sorted by the metric:
+        result = self.adaptor.get("y/z", ordering=lambda par: par["y"]["z"])
+        self.assertEqual(result, sorted(result))
+
+        # just to be sure: This is not.
+        result = self.adaptor.get("y/z")
+        self.assertNotEqual(result, sorted(result))
