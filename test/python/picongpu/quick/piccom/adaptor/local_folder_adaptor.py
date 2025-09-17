@@ -255,6 +255,9 @@ class TestLocalFolderAdaptor(TestCase):
     def test_get_parameter_value(self):
         objects = populate(self.database, [{"x": x, "y": {"z": y, "a": "b"}} for x in range(7) for y in range(42, 49)])
         for i, content in objects.items():
+            self.assertEqual(self.adaptor.get("x", ids=[i])[0], content["x"])
             self.assertEqual(self.adaptor.get(Parameter("x"), ids=[i])[0], content["x"])
             self.assertEqual(self.adaptor.get(Parameter("y"), ids=[i])[0], content["y"])
             self.assertEqual(self.adaptor.get(Parameter("y/z"), ids=[i])[0], content["y"]["z"])
+            self.assertEqual(self.adaptor.get(["x", "y"], ids=[i])[0], [content["x"], content["y"]])
+            self.assertEqual(self.adaptor.get(["ids", "y/a"], ids=[i])[0], [i, content["y"]["a"]])
