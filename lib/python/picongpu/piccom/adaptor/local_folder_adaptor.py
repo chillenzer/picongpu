@@ -6,7 +6,7 @@ License: GPLv3+
 """
 
 from enum import Enum
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 from random import sample
 from itertools import batched
 
@@ -112,7 +112,13 @@ class Ordering(Enum):
     random = "random"
 
 
-def _apply_ordering(objs, ordering: Ordering):
+def _apply_ordering(objs, ordering: Ordering | Callable[[dict[str, Any]], float]):
+    if not isinstance(ordering, Ordering):
+        try:
+            return _apply_ordering(objs, Ordering(ordering))
+        except ValueError:
+            return iter(sorted(objs, key=lambda obj: ordering(_extract_parameters(obj))))
+
     if ordering == Ordering.arbitrary:
         return objs
     if ordering == Ordering.random:
@@ -198,11 +204,11 @@ def _get_full_metadata(
     ids: Iterable[str] | None = None,
     parameters: dict[str, Any] | None = None,
     status: dict[str, str] | None = None,
-    ordering: Ordering = Ordering.arbitrary,
+    ordering: Ordering | Callable[[dict[str, Any]], float] = Ordering.arbitrary,
 ):
     return _apply_ordering(
         _filter_by_parameters(_filter_by_status(_filter_by_ids(database.find(), ids or AllIds()), status), parameters),
-        Ordering(ordering),
+        ordering,
     )
 
 
