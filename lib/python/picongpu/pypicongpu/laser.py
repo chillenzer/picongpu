@@ -84,13 +84,13 @@ class _BaseLaser(Laser):
         return {
             "wave_length_si": self.wavelength,
             "pulse_duration_si": self.duration,
-            "focus_pos_si": list(map(lambda x: {"component": x}, self.focus_pos)),
+            "focus_pos_si": list(map(lambda x: {"component": float(x)}, self.focus_pos)),
             "phase": self.phase,
             "E0_si": self.E0,
-            "pulse_init": self.pulse_init,
-            "propagation_direction": list(map(lambda x: {"component": x}, self.propagation_direction)),
+            "pulse_init": float(self.pulse_init),
+            "propagation_direction": list(map(lambda x: {"component": float(x)}, self.propagation_direction)),
             "polarization_type": self.polarization_type.get_cpp_str(),
-            "polarization_direction": list(map(lambda x: {"component": x}, self.polarization_direction)),
+            "polarization_direction": list(map(lambda x: {"component": float(x)}, self.polarization_direction)),
             "huygens_surface_positions": _get_huygens_surface_serialized(self.huygens_surface_positions),
         }
 
@@ -124,9 +124,9 @@ class GaussianLaser(_BaseLaser):
 
         # Build on the common fields
         return self._get_common_serialized_fields() | {
-            "waist_si": self.waist,
-            "laguerre_modes": list(map(lambda x: {"single_laguerre_mode": x}, self.laguerre_modes)),
-            "laguerre_phases": list(map(lambda x: {"single_laguerre_phase": x}, self.laguerre_phases)),
+            "waist_si": float(self.waist),
+            "laguerre_modes": list(map(lambda x: {"single_laguerre_mode": float(x)}, self.laguerre_modes)),
+            "laguerre_phases": list(map(lambda x: {"single_laguerre_phase": float(x)}, self.laguerre_phases)),
             "modenumber": len(self.laguerre_modes) - 1,
         }
 
@@ -218,8 +218,8 @@ class FromOpenPMDPulseLaser(Laser):
 
     def _get_serialized(self) -> dict:
         return {
-            "propagation_direction": list(map(lambda x: {"component": x}, self.propagation_direction)),
-            "polarization_direction": list(map(lambda x: {"component": x}, self.polarization_direction)),
+            "propagation_direction": list(map(lambda x: {"component": float(x)}, self.propagation_direction)),
+            "polarization_direction": list(map(lambda x: {"component": float(x)}, self.polarization_direction)),
             "file_path": self.file_path,
             "iteration": self.iteration,
             "dataset_name": self.dataset_name,

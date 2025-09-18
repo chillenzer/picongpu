@@ -41,7 +41,8 @@ class LocalFolderDatabase:
 
     def __init__(self, directory: PathLike):
         self.directory = Path(directory)
-        if self.directory.exists() and not self.directory.is_dir():
+        self.directory.mkdir(parents=True, exist_ok=True)
+        if not self.directory.is_dir():
             raise ValueError("{directory=} should point to a directory usable for storage.")
 
     def __getitem__(self, collection):

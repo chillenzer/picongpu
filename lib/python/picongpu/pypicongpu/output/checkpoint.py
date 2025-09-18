@@ -33,7 +33,7 @@ class Checkpoint(Plugin):
 
     _name = "checkpoint"
 
-    def result_info(self, result_directory: PathLike) -> list[dict[str, Any]]:
+    def result_info(self, result_directory: PathLike) -> dict[str, Any]:
         directory = Path(self.directory or "checkpoints")
         if not directory.is_absolute():
             directory = result_directory / directory
@@ -43,7 +43,7 @@ class Checkpoint(Plugin):
             f"{self.file or 'checkpoint'}{openPMD_options.get('infix', '_%06T')}.{openPMD_options.get('ext', 'bp5')}"
         )
 
-        return [{"checkpoint": {"type": "local disk", "path": file if file.is_absolute() else directory / file}}]
+        return {"checkpoint": {"type": "local disk", "path": file if file.is_absolute() else directory / file}}
 
     def __init__(self):
         "do nothing"

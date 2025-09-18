@@ -6,6 +6,8 @@ License: GPLv3+
 """
 
 from enum import Enum
+from functools import reduce
+import logging
 from typing import Any, Callable, Iterable
 from random import sample
 from itertools import batched
@@ -34,21 +36,29 @@ def _contains(content, parameters):
     return all(key in content and _contains_single_value(content[key], value) for key, value in parameters.items())
 
 
-_ACTION_NAME = {"parameters": "generate_input_files", "runtime_info": "run"}
-
-
 def _extract(content: MetadataFile | dict, what) -> dict[str, Any]:
     if isinstance(content, dict):
-        return _extract_parameters(MetadataFile.model_validate(content))
-    return next(filter(lambda x: x.action_name == _ACTION_NAME[what], content.log.values())).content
+        return _extract(MetadataFile.model_validate(content), what)
+    return reduce(lambda acc, rhs: acc | rhs.content, filter(lambda x: x.action_name == what, content.log.values()), {})
+
+
+def _simplify_species(content):
+    try:
+        content["species"] = {species["name"]: species for species in content["species_initmanager"]["species"]}
+    except Exception as err:
+        logging.debug(str(err))
+    return content
 
 
 def _extract_parameters(content: MetadataFile | dict) -> dict[str, Any]:
-    return _extract(content, "parameters")
+    return _simplify_species(
+        _extract(content, "generate_input_files")["simulation"]
+        | {"additional_parameters": _extract(content, "additional_parameters")}
+    )
 
 
 def _extract_runtime_info(content: MetadataFile | dict) -> RuntimeInfo:
-    return RuntimeInfo(**_extract(content, "runtime_info"))
+    return RuntimeInfo(**_extract(content, "run")["info"])
 
 
 def _filter_by_parameters(objs, parameters):
@@ -160,6 +170,17 @@ class Parameter:
         return obj
 
 
+class Result:
+    def __init__(self, name):
+        self.name = name
+
+    def extract_from(self, obj: RuntimeInfo):
+        obj = obj.expected_results
+        for key in self.name.split("/"):
+            obj = obj[key]
+        return obj
+
+
 def is_iterable(obj):
     try:
         iter(obj)
@@ -182,6 +203,8 @@ def _retrievable_to_function(retrievable):
         return _extract_parameters
     if isinstance(retrievable, Parameter):
         return lambda obj: retrievable.extract_from(_extract_parameters(obj))
+    if isinstance(retrievable, Result):
+        return lambda obj: retrievable.extract_from(_extract_runtime_info(obj))
     if is_iterable(retrievable):
         if hasattr(retrievable, "items"):
             return lambda obj: {key: _retrievable_to_function(r)(obj) for key, r in retrievable.items()}

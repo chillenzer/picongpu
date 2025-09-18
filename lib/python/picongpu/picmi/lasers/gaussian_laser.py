@@ -100,8 +100,8 @@ class GaussianLaser(picmistandard.PICMI_GaussianLaser, BaseLaser):
         pypicongpu_laser = laser.GaussianLaser()
         pypicongpu_laser.wavelength = self.wavelength
         pypicongpu_laser.waist = self.waist
-        pypicongpu_laser.duration = self.duration
-        pypicongpu_laser.focus_pos = self.focal_position
+        pypicongpu_laser.duration = float(self.duration)
+        pypicongpu_laser.focus_pos = list(self.focal_position)
         pypicongpu_laser.phase = self.phi0
         pypicongpu_laser.E0 = self.E0
         pypicongpu_laser.pulse_init = self._compute_pulse_init()

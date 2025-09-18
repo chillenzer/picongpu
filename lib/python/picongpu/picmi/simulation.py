@@ -100,6 +100,9 @@ class Simulation(picmistandard.PICMI_Simulation):
         picongpu_walltime: typing.Optional[datetime.timedelta] = None,
         picongpu_binomial_current_interpolation: bool = False,
         picongpu_communicator: Communicator | None = None,
+        picongpu_species=None,
+        picongpu_diagnostics=None,
+        picongpu_laser=None,
         **keyword_arguments,
     ):
         if picongpu_template_dir is not None:
@@ -107,6 +110,7 @@ class Simulation(picmistandard.PICMI_Simulation):
         else:
             self.picongpu_template_dir = picongpu_template_dir
 
+        self.diagnostics = picongpu_diagnostics
         self.picongpu_typical_ppc = picongpu_typical_ppc
         self.picongpu_moving_window_move_point = picongpu_moving_window_move_point
         self.picongpu_moving_window_stop_iteration = picongpu_moving_window_stop_iteration
@@ -122,6 +126,15 @@ class Simulation(picmistandard.PICMI_Simulation):
         self.picongpu_communicator.print_info()
 
         picmistandard.PICMI_Simulation.__init__(self, **keyword_arguments)
+        if picongpu_species is not None:
+            for s in picongpu_species:
+                self.add_species(*s)
+        if picongpu_laser is not None:
+            try:
+                for laser in picongpu_laser:
+                    self.add_laser(laser, None)
+            except TypeError:
+                self.add_laser(picongpu_laser, None)
 
         # additional PICMI stuff checks, @todo move to picmistandard, Brian Marre, 2024
         ## throw if both cfl & delta_t are set
@@ -536,9 +549,9 @@ class Simulation(picmistandard.PICMI_Simulation):
 
         return s
 
-    def picongpu_run(self) -> None:
+    def picongpu_run(self, **kwargs) -> None:
         """build and run PIConGPU simulation"""
-        runner = self.picongpu_get_runner()
+        runner = self.picongpu_get_runner(**kwargs)
         _, self._latest_action_id = runner.generate(return_action_id=True)
         _, self._latest_action_id = runner.build(return_action_id=True, update_of=self._latest_action_id)
         _, self._latest_action_id = runner.run(return_action_id=True, update_of=self._latest_action_id)
