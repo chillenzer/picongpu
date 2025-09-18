@@ -110,10 +110,6 @@ class _BaseLaser(Laser, BaseModel):
     """Position in cells of the Huygens surface relative to start/
        edge(negative numbers) of the total domain"""
 
-    def _get_common_serialized_fields(self) -> dict:
-        """Get all common serialized fields for lasers"""
-        return self.model_dump(mode="json")
-
 
 def all_ge(values, than_value):
     if any(wrong := [x < than_value for x in values]):
