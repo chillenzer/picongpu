@@ -76,6 +76,24 @@ def _extract_spectrum(series):
     return E_bins, theta_bins, spectrum[1:-1, 1:-1]
 
 
+def setup_plots(widths, durations):
+    fig, axes = plt.subplots(len(widths), len(durations), layout="constrained", sharex=True, sharey=True)
+    # We need to do this explicitly in the case where one of widths or durations only has a single entry.
+    axes = np.asarray(axes).reshape(len(widths), len(durations))
+
+    fig.suptitle("Electron Spectra")
+    fig.supxlabel(r"$E \, \mathrm{[MeV]}$", fontsize=18)
+    fig.supylabel(r"$\theta \, \mathrm{[mrad]}$", fontsize=18)
+
+    for i, duration in enumerate(durations):
+        axes[0, i].set_title(f"{duration=}")
+    for i, width in enumerate(widths):
+        axes[i, -1].yaxis.set_label_position("right")
+        axes[i, -1].set_ylabel(f"{width=}")
+
+    return fig, axes
+
+
 def plot_electron_spectrum(communicator):
     results = LocalFolderAdaptor(communicator).get(
         [
@@ -86,31 +104,26 @@ def plot_electron_spectrum(communicator):
     )
     widths = sorted(set(map(lambda r: r[0][0], results)))
     durations = sorted(set(map(lambda r: r[0][1], results)))
+    fig, axes = setup_plots(widths, durations)
 
-    fig, axes = plt.subplots(len(widths), len(durations), layout="constrained")
-    # We need to do this explicitly in the case where one of widths or durations only has a single entry.
-    axes = axes.reshape(len(widths), len(durations))
-    results = {
-        (width, duration): (
+    results = [
+        (
             axes[widths.index(width), durations.index(duration)],
             _extract_spectrum(Series(path, Access_Type.read_only)),
         )
         for (width, duration), path in results
-    }
+    ]
 
-    spectra = [s for a, (e, t, s) in results.values()]
+    spectra = [s for a, (e, t, s) in results]
     norm = LogNorm(vmin=np.min(spectra), vmax=np.max(spectra))
 
-    for ax, (e, theta, spectrum) in results.values():
+    im = None
+    for ax, (e, theta, spectrum) in results:
         im = ax.pcolormesh(e, theta, spectrum, norm=norm)
 
-    cb = fig.colorbar(im, ax=axes)
-    cb.set_label(r"$\frac{\mathrm{d}^2 Q}{\mathrm{d} E \mathrm{d}\theta} \, \mathrm{[pC/MeV/mrad]}$")
-
-    fig.suptitle("Electron Spectra")
-    fig.supxlabel(r"$E \, \mathrm{[MeV]}$", fontsize=18)
-    fig.supylabel(r"$\theta \, \mathrm{[mrad]}$", fontsize=18)
-
+    if im is not None:
+        cb = fig.colorbar(im, ax=axes)
+        cb.set_label(r"$\frac{\mathrm{d}^2 Q}{\mathrm{d} E \mathrm{d}\theta} \, \mathrm{[pC/MeV/mrad]}$")
     filename = DIRECTORIES["plot"]() / "electron_spectra.svg"
     filename.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(filename)
