@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from matplotlib.colors import LogNorm
 import numpy as np
 from matplotlib import pyplot as plt
-from openpmd_api import Mesh_Record_Component, Series
+from openpmd_api import Mesh_Record_Component, Series, Access_Type
 from picongpu.piccom.schema import LogEntry
 from scipy.constants import elementary_charge
 from sympy import integrate, symbols
@@ -73,7 +73,7 @@ def _extract_spectrum(series):
     E_bins = np.array(spectrum_info.get_attribute("Energy_bin_edges")) / elementary_charge / 1.0e6
     theta_bins = np.array(spectrum_info.get_attribute("pointingXY_bin_edges"))
     series.flush()
-    return E_bins, theta_bins, spectrum
+    return E_bins, theta_bins, spectrum[1:-1, 1:-1]
 
 
 def plot_electron_spectrum(communicator):
@@ -88,10 +88,12 @@ def plot_electron_spectrum(communicator):
     durations = sorted(set(map(lambda r: r[0][1], results)))
 
     fig, axes = plt.subplots(len(widths), len(durations), layout="constrained")
+    # We need to do this explicitly in the case where one of widths or durations only has a single entry.
+    axes = axes.reshape(len(widths), len(durations))
     results = {
         (width, duration): (
             axes[widths.index(width), durations.index(duration)],
-            _extract_spectrum(Series(path)),
+            _extract_spectrum(Series(path, Access_Type.read_only)),
         )
         for (width, duration), path in results
     }
@@ -109,7 +111,9 @@ def plot_electron_spectrum(communicator):
     fig.supxlabel(r"$E \, \mathrm{[MeV]}$", fontsize=18)
     fig.supylabel(r"$\theta \, \mathrm{[mrad]}$", fontsize=18)
 
-    fig.savefig(DIRECTORIES["plot"]() / "electron_spectra.svg")
+    filename = DIRECTORIES["plot"]() / "electron_spectra.svg"
+    filename.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(filename)
 
 
 def postprocessing(communicator):
