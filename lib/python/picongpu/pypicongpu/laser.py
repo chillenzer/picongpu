@@ -82,8 +82,8 @@ class _BaseLaser(Laser):
     def _get_common_serialized_fields(self) -> dict:
         """Get all common serialized fields for lasers"""
         return {
-            "wave_length_si": self.wavelength,
-            "pulse_duration_si": self.duration,
+            "wave_length_si": float(self.wavelength),
+            "pulse_duration_si": float(self.duration),
             "focus_pos_si": list(map(lambda x: {"component": float(x)}, self.focus_pos)),
             "phase": self.phase,
             "E0_si": self.E0,
@@ -146,7 +146,7 @@ class PlaneWaveLaser(_BaseLaser):
 
     def _get_serialized(self) -> dict:
         return self._get_common_serialized_fields() | {
-            "laser_nofocus_constant_si": self.laser_nofocus_constant_si,
+            "laser_nofocus_constant_si": float(self.laser_nofocus_constant_si),
         }
 
 
