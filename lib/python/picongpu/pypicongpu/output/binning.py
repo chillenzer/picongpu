@@ -6,7 +6,8 @@ License: GPLv3+
 """
 
 import json
-from typing import Optional
+from os import PathLike
+from typing import Any, Optional
 
 import typeguard
 from pydantic import BaseModel, Field
@@ -69,4 +70,23 @@ class Binning(Plugin):
             "openPMDExtension": self.openPMDExt,
             "openPMDInfix": self.openPMDInfix,
             "dumpPeriod": self.dumpPeriod,
+        }
+
+    def result_info(self, result_directory: PathLike) -> dict[str, Any]:
+        openPMD_options = {
+            key: value
+            for key, value in zip(["infix", "ext"], [self.openPMDInfix, self.openPMDExt])
+            if value is not None
+        }
+        return {
+            "binning": {
+                self.name: {
+                    "type": "local disk",
+                    "path": self._absolute_path(
+                        self._fill_openPMD_path(self.name, openPMD_options),
+                        working_directory=result_directory,
+                        sub_directory="binningOpenPMD",
+                    ),
+                }
+            }
         }

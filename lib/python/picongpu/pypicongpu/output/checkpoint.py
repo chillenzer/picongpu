@@ -31,16 +31,16 @@ class Checkpoint(Plugin, BaseModel):
     _name: str = PrivateAttr("checkpoint")
 
     def result_info(self, result_directory: PathLike) -> dict[str, Any]:
-        directory = Path(self.directory or "checkpoints")
-        if not directory.is_absolute():
-            directory = result_directory / directory
-
-        openPMD_options = self.openPMD or {}
-        file = Path(
-            f"{self.file or 'checkpoint'}{openPMD_options.get('infix', '_%06T')}.{openPMD_options.get('ext', 'bp5')}"
-        )
-
-        return [{"checkpoint": {"type": "local disk", "path": file if file.is_absolute() else directory / file}}]
+        return {
+            "checkpoint": {
+                "type": "local disk",
+                "path": self._absolute_path(
+                    self._fill_openPMD_path(self.file or "checkpoint", self.openPMD),
+                    working_directory=result_directory,
+                    sub_directory=Path(self.directory or "checkpoints"),
+                ),
+            }
+        }
 
     @model_validator(mode="after")
     def check(self):
