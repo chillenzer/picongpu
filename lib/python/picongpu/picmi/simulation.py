@@ -101,7 +101,7 @@ class Simulation(picmistandard.PICMI_Simulation):
         picongpu_binomial_current_interpolation: bool = False,
         picongpu_communicator: Communicator | None = None,
         picongpu_species=None,
-        picongpu_diagnostics=None,
+        diagnostics=None,
         picongpu_laser=None,
         **keyword_arguments,
     ):
@@ -110,7 +110,6 @@ class Simulation(picmistandard.PICMI_Simulation):
         else:
             self.picongpu_template_dir = picongpu_template_dir
 
-        self.diagnostics = picongpu_diagnostics
         self.picongpu_typical_ppc = picongpu_typical_ppc
         self.picongpu_moving_window_move_point = picongpu_moving_window_move_point
         self.picongpu_moving_window_stop_iteration = picongpu_moving_window_stop_iteration
@@ -126,6 +125,7 @@ class Simulation(picmistandard.PICMI_Simulation):
         self.picongpu_communicator.print_info()
 
         picmistandard.PICMI_Simulation.__init__(self, **keyword_arguments)
+        self.diagnostics = diagnostics or []
         if picongpu_species is not None:
             for s in picongpu_species:
                 self.add_species(*s)
