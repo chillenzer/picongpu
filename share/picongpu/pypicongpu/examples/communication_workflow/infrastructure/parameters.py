@@ -19,13 +19,13 @@ DIRECTORIES = {
 }
 
 NUM_CELLS = np.array([64, 64, 64])
-BOX_SIZE = np.array([0.1772e-6, 0.4430e-7, 0.1772e-6])  # unit: meter
+BOX_SIZE = np.array([3.40224e-05, 9.07264e-05, 3.40224e-05])
 CELL_SIZE = BOX_SIZE / NUM_CELLS
 
 DENSITY = 1.0e25
 MAX_STEPS = 1000
 
-WIDTHS = np.linspace(0.4, 0.6, 2) * BOX_SIZE[1]
+WIDTHS = np.linspace(0.4, 0.6, 1) * BOX_SIZE[1]
 DURATIONS = np.linspace(5.0, 15.0, 1) * 1.0e-16
 
 
