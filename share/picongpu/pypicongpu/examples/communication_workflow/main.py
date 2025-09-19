@@ -56,7 +56,7 @@ def generate_simulation(communicator, width, duration):
         ),
         max_steps=MAX_STEPS,
         picongpu_species=[(s, LAYOUT) for s in species],
-        picongpu_diagnostics=generate_diagnostics(species),
+        diagnostics=generate_diagnostics(species),
         picongpu_laser=GaussianLaser(
             wavelength=0.8e-6,
             waist=BOX_SIZE[0] / 4,
