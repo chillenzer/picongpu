@@ -18,8 +18,8 @@ DIRECTORIES = {
     "plot": lambda *_: (WORKING_DIRECTORY / "plots").absolute(),
 }
 
-NUM_CELLS = np.array([64, 64, 64])
-BOX_SIZE = np.array([3.40224e-05, 9.07264e-05, 3.40224e-05])
+NUM_CELLS = np.array([64, 256, 64])
+BOX_SIZE = np.array([3.40224e-05, 3.0e-05, 3.40224e-05])
 CELL_SIZE = BOX_SIZE / NUM_CELLS
 
 DENSITY = 1.0e25

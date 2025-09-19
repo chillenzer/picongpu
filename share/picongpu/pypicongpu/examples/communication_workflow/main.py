@@ -24,7 +24,7 @@ from infrastructure.species import LAYOUT, generate_species
 from picongpu.picmi import (
     Cartesian3DGrid,
     ElectromagneticSolver,
-    GaussianLaser,
+    PlaneWaveLaser,
     Simulation,
 )
 from picongpu.picmi.lasers import PolarizationType
@@ -48,8 +48,8 @@ def generate_simulation(communicator, width, duration):
                 number_of_cells=NUM_CELLS,
                 lower_bound=[0, 0, 0],
                 upper_bound=BOX_SIZE,
-                lower_boundary_conditions=["open", "open", "open"],
-                upper_boundary_conditions=["open", "open", "open"],
+                lower_boundary_conditions=["periodic", "open", "periodic"],
+                upper_boundary_conditions=["periodic", "open", "periodic"],
             ),
             method="Yee",
             cfl=0.95,
@@ -57,9 +57,8 @@ def generate_simulation(communicator, width, duration):
         max_steps=MAX_STEPS,
         picongpu_species=[(s, LAYOUT) for s in species],
         diagnostics=generate_diagnostics(species),
-        picongpu_laser=GaussianLaser(
+        picongpu_laser=PlaneWaveLaser(
             wavelength=0.8e-6,
-            waist=BOX_SIZE[0] / 4,
             duration=duration,
             propagation_direction=[0.0, 1.0, 0.0],
             polarization_direction=[1.0, 0.0, 0.0],

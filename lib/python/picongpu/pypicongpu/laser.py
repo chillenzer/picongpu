@@ -120,7 +120,6 @@ def all_ge(values, than_value):
 def serialise_laguerre(values, suffix):
     return [{f"single_laguerre_{suffix}": x} for x in values]
 
-
 class GaussianLaser(_BaseLaser):
     """
     PIConGPU Gaussian Laser
@@ -162,7 +161,6 @@ class PlaneWaveLaser(_BaseLaser):
     _name: str = PrivateAttr("planewave")
     laser_nofocus_constant_si: float
     """constant for plane wave laser without focus (unitless)"""
-
 
 class DispersivePulseLaser(_BaseLaser):
     """

@@ -6,7 +6,7 @@ License: GPLv3+
 """
 
 from datetime import datetime, timezone
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, Normalize
 import numpy as np
 from matplotlib import pyplot as plt
 from openpmd_api import Mesh_Record_Component, Series, Access_Type
@@ -94,6 +94,17 @@ def setup_plots(widths, durations):
     return fig, axes
 
 
+def construct_norm(results):
+    spectra = [s for a, (e, t, s) in results]
+    vmin = np.min(spectra)
+    vmax = np.max(spectra)
+    if vmin > 0:
+        norm = LogNorm(vmin, vmax)
+    else:
+        norm = Normalize(vmin, vmax)
+    return norm
+
+
 def plot_electron_spectrum(communicator):
     results = LocalFolderAdaptor(communicator).get(
         [
@@ -114,9 +125,7 @@ def plot_electron_spectrum(communicator):
         for (width, duration), path in results
     ]
 
-    spectra = [s for a, (e, t, s) in results]
-    norm = LogNorm(vmin=np.min(spectra), vmax=np.max(spectra))
-
+    norm = construct_norm(results)
     im = None
     for ax, (e, theta, spectrum) in results:
         im = ax.pcolormesh(e, theta, spectrum, norm=norm)
