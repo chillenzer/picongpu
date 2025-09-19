@@ -25,8 +25,8 @@ CELL_SIZE = BOX_SIZE / NUM_CELLS
 DENSITY = 1.0e25
 MAX_STEPS = 1000
 
-WIDTHS = np.linspace(0.4, 0.6, 1) * BOX_SIZE[1]
-DURATIONS = np.linspace(5.0, 15.0, 1) * 1.0e-16
+WIDTHS = np.linspace(0.4, 0.6, 3) * BOX_SIZE[1]
+DURATIONS = np.linspace(5.0, 15.0, 4) * 1.0e-15
 
 
 def foil(density, width):

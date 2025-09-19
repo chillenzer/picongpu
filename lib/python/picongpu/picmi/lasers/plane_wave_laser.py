@@ -71,7 +71,6 @@ class PlaneWaveLaser(BaseLaser):
             [16, -16],
             [16, -16],
         ],
-        **kw,
     ):
         if wavelength <= 0:
             raise ValueError(f"wavelength must be > 0. You gave {wavelength=}.")

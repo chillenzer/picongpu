@@ -29,7 +29,7 @@ from picongpu.picmi import (
 )
 from picongpu.picmi.lasers import PolarizationType
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 """
 @file PICMI user script reproducing the PIConGPU LWFA example
@@ -62,7 +62,6 @@ def generate_simulation(communicator, width, duration):
             duration=duration,
             propagation_direction=[0.0, 1.0, 0.0],
             polarization_direction=[1.0, 0.0, 0.0],
-            focal_position=BOX_SIZE / 2,
             centroid_position=BOX_SIZE / 2 * [1, -1, 1],
             picongpu_polarization_type=PolarizationType.LINEAR,
             a0=8.0,
