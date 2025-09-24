@@ -35,7 +35,11 @@ def populate(database, parameters=None):
                 username="unimportant",
                 date_time=datetime.now(timezone.utc),
                 log={
-                    u: LogEntry(action_name="generate_input_files", timestamp=datetime.now(timezone.utc), content=entry)
+                    u: LogEntry(
+                        action_name="generate_input_files",
+                        timestamp=datetime.now(timezone.utc),
+                        content={"simulation": entry},
+                    )
                 },
             )
         )["_id"]: entry

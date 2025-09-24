@@ -5,12 +5,38 @@ Authors: Julian Lenz
 License: GPLv3+
 """
 
+import logging
 from enum import Enum
 from functools import reduce
-import logging
-from typing import Any, Callable, Iterable
 from random import sample
-from itertools import batched
+from typing import Any, Callable, Iterable
+
+try:
+    from itertools import batched
+except ImportError:
+    # This was only added in 3.12
+    class batched:
+        def __init__(self, iterable, batch_size):
+            self.batch_size = batch_size
+            self.iterable = iter(iterable)
+            self.exhausted = False
+
+        def __next__(self):
+            if self.exhausted:
+                raise StopIteration()
+
+            def gen():
+                for _ in range(self.batch_size):
+                    try:
+                        yield next(self.iterable)
+                    except StopIteration:
+                        self.exhausted = True
+
+            return gen()
+
+        def __iter__(self):
+            return self
+
 
 import numpy as np
 
@@ -51,9 +77,11 @@ def _simplify_species(content):
 
 
 def _extract_parameters(content: MetadataFile | dict) -> dict[str, Any]:
+    additional_parameters = _extract(content, "additional_parameters")
     return _simplify_species(
-        _extract(content, "generate_input_files")["simulation"]
-        | {"additional_parameters": _extract(content, "additional_parameters")}
+        (additional_parameters or {})
+        | _extract(content, "generate_input_files")["simulation"]
+        | ({"additional_parameters": additional_parameters} if additional_parameters else {})
     )
 
 
