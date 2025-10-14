@@ -5,23 +5,28 @@ Authors: Hannes Troepgen, Brian Edward Marre, Julian Lenz
 License: GPLv3+
 """
 
-from .grid import Grid3D
-from .laser import DispersivePulseLaser, FromOpenPMDPulseLaser, GaussianLaser, PlaneWaveLaser
-from .movingwindow import MovingWindow
-from .field_solver.DefaultSolver import Solver
-from . import species
-from . import util
-from . import output
-from .rendering import RenderedObject
-from .customuserinput import InterfaceCustomUserInput
-from .output.plugin import Plugin
-from .output.timestepspec import TimeStepSpec
-from .walltime import Walltime
-
-import typing
-import typeguard
-import logging
 import datetime
+import logging
+import typing
+from pathlib import Path
+
+import typeguard
+
+from . import output, species, util
+from .customuserinput import InterfaceCustomUserInput
+from .field_solver.DefaultSolver import Solver
+from .grid import Grid3D
+from .laser import (
+    DispersivePulseLaser,
+    FromOpenPMDPulseLaser,
+    GaussianLaser,
+    PlaneWaveLaser,
+)
+from .movingwindow import MovingWindow
+from .output import Plugin, OpenPMDPlugin
+from .output.timestepspec import TimeStepSpec
+from .rendering import RenderedObject
+from .walltime import Walltime
 
 
 @typeguard.typechecked
@@ -120,6 +125,11 @@ class Simulation(RenderedObject):
             + "\t WARNING: custom input is not checked, it is the user's responsibility to check inputs and generated input.\n"
             + "\t WARNING: custom templates are required if using custom user input.\n"
         )
+
+    def spread_directory_information(self, setup_dir):
+        for plugin in self.plugins:
+            if isinstance(plugin, OpenPMDPlugin):
+                plugin.setup_dir = Path(setup_dir)
 
     def _get_serialized(self) -> dict:
         serialized = {

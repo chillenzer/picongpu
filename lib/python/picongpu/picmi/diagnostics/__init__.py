@@ -13,13 +13,20 @@ from .macro_particle_count import MacroParticleCount
 from .png import Png
 from .timestepspec import TimeStepSpec
 from .checkpoint import Checkpoint
+from .particle_dump import ParticleDump
+from .field_dump import FieldDump
+from .backend_config import BackendConfig, OpenPMDConfig
 
 __all__ = [
     "Auto",
+    "BackendConfig",
+    "OpenPMDConfig",
     "Binning",
     "PhaseSpace",
     "EnergyHistogram",
     "MacroParticleCount",
+    "ParticleDump",
+    "FieldDump",
     "Png",
     "TimeStepSpec",
     "Checkpoint",

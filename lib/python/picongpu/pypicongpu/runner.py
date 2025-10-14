@@ -5,22 +5,22 @@ Authors: Hannes Troepgen, Brian Edward Marre, Richard Pausch
 License: GPLv3+
 """
 
-from .simulation import Simulation
-from . import util
-from .rendering import Renderer
-
-from os import path, environ, chdir
+import datetime
+import json
+import logging
+import pathlib
+import re
+import subprocess
+import tempfile
+import typing
+from os import chdir, environ, path
 from pathlib import Path
 
 import typeguard
-import tempfile
-import subprocess
-import logging
-import typing
-import re
-import datetime
-import pathlib
-import json
+
+from . import util
+from .rendering import Renderer
+from .simulation import Simulation
 
 DEFAULT_TEMPLATE_DIRECTORY = (Path(__file__).parents[4] / "share" / "picongpu" / "pypicongpu" / "template").absolute()
 
@@ -289,6 +289,8 @@ class Runner:
         Delegates work to Renderer(), see there for details.
         """
         logging.info("rendering templates...")
+        # This is kind of a dirty hack:
+        self.sim.spread_directory_information(self.setup_dir)
         # check 1 (implicit): according to schema?
         context = self.sim.get_rendering_context()
         # check 2: structure suitable for renderer?

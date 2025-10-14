@@ -16,6 +16,8 @@ from pathlib import Path
 import picmistandard
 import typeguard
 
+from picongpu.picmi.diagnostics import ParticleDump, FieldDump
+from picongpu.pypicongpu.output.openpmd_plugin import OpenPMDPlugin, FieldDump as PyPIConGPUFieldDump
 from picongpu.pypicongpu.species.initmanager import InitManager
 
 from .. import pypicongpu
@@ -24,6 +26,15 @@ from .grid import Cartesian3DGrid
 from .interaction import Interaction
 from .interaction.ionization import IonizationModel
 from .species import Species
+
+
+def _unique(iterable):
+    # very naive, just for non-hashables that can still be compared
+    result = []
+    for x in iterable:
+        if x not in result:
+            result.append(x)
+    return result
 
 
 def is_iterable(obj):
@@ -65,6 +76,10 @@ def _normalise_template_dir(directory: None | PathLike | typing.Iterable[PathLik
     if not_allowed := _not_allowed_template_directories(directory):
         raise ValueError(f"Found {not_allowed=} as values for template directories. These are invalid.")
     return directory
+
+
+def handled_via_openpmd(diagnostic):
+    return isinstance(diagnostic, (ParticleDump, FieldDump))
 
 
 # may not use pydantic since inherits from _DocumentedMetaClass
@@ -479,6 +494,37 @@ class Simulation(picmistandard.PICMI_Simulation):
             )
         self.picongpu_run()
 
+    def _generate_openpmd_plugins(self, diagnostics, pypicongpu_by_picmi_species, num_steps):
+        diagnostics = list(diagnostics)
+        return [
+            OpenPMDPlugin(
+                sources=[
+                    (
+                        diagnostic.period.get_as_pypicongpu(time_step_size=self.time_step_size, num_steps=num_steps),
+                        pypicongpu_by_picmi_species[diagnostic.species]
+                        if isinstance(diagnostic, ParticleDump)
+                        else PyPIConGPUFieldDump(name=diagnostic.fieldname),
+                    )
+                    for diagnostic in filter(lambda x: x.options == options, diagnostics)
+                ],
+                config=options,
+            )
+            for options in _unique(map(lambda x: x.options, diagnostics))
+        ]
+
+    def _generate_plugins(self, pypicongpu_by_picmi_species, num_steps):
+        return [
+            entry.get_as_pypicongpu(
+                dict_species_picmi_to_pypicongpu=pypicongpu_by_picmi_species,
+                time_step_size=self.time_step_size,
+                num_steps=num_steps,
+            )
+            for entry in self.diagnostics
+            if not handled_via_openpmd(entry)
+        ] + self._generate_openpmd_plugins(
+            filter(handled_via_openpmd, self.diagnostics), pypicongpu_by_picmi_species, num_steps
+        )
+
     def get_as_pypicongpu(self) -> pypicongpu.simulation.Simulation:
         """translate to PyPIConGPU object"""
         s = pypicongpu.simulation.Simulation()
@@ -523,15 +569,7 @@ class Simulation(picmistandard.PICMI_Simulation):
 
         s.init_manager, pypicongpu_by_picmi_species = self.__get_init_manager()
 
-        s.plugins = [
-            entry.get_as_pypicongpu(
-                dict_species_picmi_to_pypicongpu=pypicongpu_by_picmi_species,
-                time_step_size=self.time_step_size,
-                num_steps=s.time_steps,
-            )
-            for entry in self.diagnostics
-        ]
-
+        s.plugins = self._generate_plugins(pypicongpu_by_picmi_species, s.time_steps)
         # set typical ppc if not set explicitly by user
         if self.picongpu_typical_ppc is None:
             s.typical_ppc = (s.init_manager).get_typical_particle_per_cell()

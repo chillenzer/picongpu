@@ -5,9 +5,13 @@ from .macro_particle_count import MacroParticleCount
 from .png import Png
 from .timestepspec import TimeStepSpec
 from .checkpoint import Checkpoint
+from .openpmd_plugin import OpenPMDPlugin
+from .plugin import Plugin
 
 __all__ = [
     "Auto",
+    "OpenPMDPlugin",
+    "Plugin",
     "PhaseSpace",
     "EnergyHistogram",
     "MacroParticleCount",
