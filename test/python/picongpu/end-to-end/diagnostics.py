@@ -11,10 +11,17 @@ from unittest import TestCase, main
 
 import numpy as np
 from .arbitrary_parameters import (
+    CELL_SIZE,
     NUMBER_OF_CELLS,
     UPPER_BOUNDARY,
 )
-from .compare_particles import load_diagnostic_result, read_particles, sort_particles, read_fields
+from .compare_particles import (
+    load_diagnostic_result,
+    read_densities_into_mesh,
+    read_particles,
+    sort_particles,
+    read_fields,
+)
 from .distributions import Gaussian, SphereFlanks
 from picongpu.picmi import (
     Cartesian3DGrid,
@@ -25,10 +32,12 @@ from picongpu.picmi import (
 )
 from picongpu.picmi.diagnostics import (
     Checkpoint,
+    DerivedFieldDump,
     FieldDump,
     OpenPMDConfig,
     ParticleDump,
     TimeStepSpec,
+    Counter,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -72,7 +81,7 @@ def generate_diagnostics(species):
         ParticleDump(species=species[0], options=options),
     ]
     native_fields = [FieldDump(fieldname=fieldname) for fieldname in ["E", "B"]]
-    derived_fields = []
+    derived_fields = [Counter(species=s) for s in species]
     return particles + native_fields + derived_fields
 
 
@@ -120,13 +129,25 @@ class TestDiagnostics(TestCase):
 
     def test_field_dump(self):
         for diag in self.sim.diagnostics:
-            if isinstance(diag, FieldDump):
+            if isinstance(diag, FieldDump) and not isinstance(diag, DerivedFieldDump):
                 np.testing.assert_allclose(
                     load_diagnostic_result(diag, self.result_path),
                     read_fields(self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5")[
                         diag.fieldname
                     ],
                 )
+
+    def test_counter_equals_density(self):
+        for diag in self.sim.diagnostics:
+            if isinstance(diag, DerivedFieldDump):
+                from_checkpoint = read_densities_into_mesh(
+                    self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5", NUMBER_OF_CELLS, CELL_SIZE
+                ).loc(axis=0)[*diag.species.name.split("_", maxsplit=1)]
+                # the particle counter does not include the factor of base density:
+                from_checkpoint /= 1.0e25
+                # not quite sure about the factor 1/2 yet:
+                from_diagnostics = load_diagnostic_result(diag, self.result_path).transpose((2, 1, 0)) / 2
+                np.testing.assert_allclose(from_checkpoint, from_diagnostics)
 
 
 if __name__ == "__main__":

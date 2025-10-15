@@ -14,14 +14,16 @@ from .png import Png
 from .timestepspec import TimeStepSpec
 from .checkpoint import Checkpoint
 from .particle_dump import ParticleDump
-from .field_dump import FieldDump
+from .field_dump import FieldDump, Counter, DerivedFieldDump
 from .backend_config import BackendConfig, OpenPMDConfig
 
 __all__ = [
     "Auto",
     "BackendConfig",
     "OpenPMDConfig",
+    "DerivedFieldDump",
     "Binning",
+    "Counter",
     "PhaseSpace",
     "EnergyHistogram",
     "MacroParticleCount",

@@ -1,0 +1,66 @@
+/* Copyright 2013-2024 Axel Huebl, Rene Widera, Felix Schmitt,
+ *                     Benjamin Worpitz, Richard Pausch, Pawel Ordyna
+ *
+ * This file is part of PIConGPU.
+ *
+ * PIConGPU is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * PIConGPU is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with PIConGPU.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+
+#include <pmacc/meta/conversion/MakeSeq.hpp>
+
+/* some forward declarations we need */
+#include "picongpu/fields/Fields.def"
+#include "picongpu/particles/filter/filter.def"
+#include "picongpu/particles/particleToGrid/CombinedDerive.def"
+#include "picongpu/particles/particleToGrid/ComputeGridValuePerFrame.def"
+
+namespace picongpu
+{
+    namespace deriveField = particles::particleToGrid;
+
+{{#output}}
+{{#typeID.openPMD}}
+{{#data.derived_fields}}
+    using {{{name}}}_Seq
+        = deriveField::CreateEligible_t<VectorAllSpecies, deriveField::derivedAttributes::{{{name}}}>;
+{{/data.derived_fields}}
+{{/typeID.openPMD}}
+{{/output}}
+
+
+    using FieldTmpSolvers = MakeSeq_t<
+    {{#output}}
+    {{#typeID.openPMD}}
+    {{#data.derived_fields}}
+      // This is actual content:
+      {{{name}}}_Seq
+      ,
+    {{/data.derived_fields}}
+    {{/typeID.openPMD}}
+      // This is just a placeholder inserted by all plugins.
+      // It's easier to generate valid C++ code that way.
+      // Just ignore:
+      MakeSeq_t<>
+      {{^_last}},{{/_last}}
+    {{/output}}
+    >;
+
+    using NativeFileOutputFields = MakeSeq_t<FieldE, FieldB, FieldJ>;
+    using FileOutputFields = MakeSeq_t<NativeFileOutputFields, FieldTmpSolvers>;
+    using FileOutputParticles = VectorAllSpecies;
+
+} // namespace picongpu

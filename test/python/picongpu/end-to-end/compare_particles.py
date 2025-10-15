@@ -10,6 +10,7 @@ import numpy as np
 import openpmd_api as opmd
 import pandas as pd
 from picongpu.picmi.diagnostics import ParticleDump
+from openpmd_api.openpmd_api_cxx import ErrorWrongAPIUsage
 
 
 def load_diagnostic_result(diagnostic, result_path):
@@ -21,7 +22,12 @@ def load_diagnostic_result(diagnostic, result_path):
 
 def read_fields(series_name, names=("E", "B")):
     series = opmd.Series(str(series_name), opmd.Access.read_only)
-    tmp = {name: [series.iterations[0].meshes[name][c].load_chunk() for c in "xyz"] for name in names}
+    tmp = {}
+    for name in names:
+        try:
+            tmp[name] = [series.iterations[0].meshes[name][c].load_chunk() for c in "xyz"]
+        except ErrorWrongAPIUsage:
+            tmp[name] = series.iterations[0].meshes[name].load_chunk()
     series.flush()
     return {key: np.array(value) for key, value in tmp.items()}
 

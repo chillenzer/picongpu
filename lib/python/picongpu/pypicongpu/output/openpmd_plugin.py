@@ -6,11 +6,11 @@ License: GPLv3+
 """
 
 from functools import reduce
+from hashlib import sha256
 from os import PathLike
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Annotated, Iterable, Literal
-from hashlib import sha256
+from typing import Annotated, Any, Callable, Iterable, Literal
 
 import tomli_w
 from pydantic import AfterValidator, BaseModel
@@ -18,6 +18,15 @@ from pydantic import AfterValidator, BaseModel
 from picongpu.pypicongpu.output.plugin import Plugin
 from picongpu.pypicongpu.output.timestepspec import TimeStepSpec
 from picongpu.pypicongpu.species.species import Species
+
+
+def _unique(iterable):
+    # very naive, just for non-hashables that can still be compared
+    result = []
+    for x in iterable:
+        if x not in result:
+            result.append(x)
+    return result
 
 
 class OpenPMDConfig(BaseModel):
@@ -47,8 +56,22 @@ def to_string(timestepspec: TimeStepSpec):
     )
 
 
+NATIVE_FIELDS = ["E", "B", "J"]
+PREDEFINED_DERIVED_ATTRIBUTES = {"Counter": "particleCounter"}
+
+
+class Particle:
+    pass
+
+
+class ParticleFunctor(BaseModel):
+    name: str
+    functor: Callable[[Particle], Any] | None = None
+
+
 class FieldDump(BaseModel):
     name: str
+    functor: ParticleFunctor | None = None
 
     def get_rendering_context(self) -> dict:
         return self.model_dump(mode="json")
@@ -113,7 +136,12 @@ class OpenPMDPlugin(Plugin):
 
     def _get_serialized(self) -> dict | None:
         content = self._generate_config_file()
-        return {"config_filename": str(self.config_filename(content, context="runtime"))}
+        return {"config_filename": str(self.config_filename(content, context="runtime"))} | {
+            "derived_fields": _unique(
+                source[1].functor.model_dump(mode="json")
+                for source in filter(lambda x: isinstance(x[1], FieldDump) and x[1].functor is not None, self.sources)
+            )
+        }
 
     class Config:
         arbitrary_types_allowed = True

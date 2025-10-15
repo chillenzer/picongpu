@@ -17,6 +17,7 @@ import picmistandard
 import typeguard
 
 from picongpu.picmi.diagnostics import ParticleDump, FieldDump
+from picongpu.picmi.diagnostics.field_dump import DerivedFieldDump
 from picongpu.pypicongpu.output.openpmd_plugin import OpenPMDPlugin, FieldDump as PyPIConGPUFieldDump
 from picongpu.pypicongpu.species.initmanager import InitManager
 
@@ -503,7 +504,10 @@ class Simulation(picmistandard.PICMI_Simulation):
                         diagnostic.period.get_as_pypicongpu(time_step_size=self.time_step_size, num_steps=num_steps),
                         pypicongpu_by_picmi_species[diagnostic.species]
                         if isinstance(diagnostic, ParticleDump)
-                        else PyPIConGPUFieldDump(name=diagnostic.fieldname),
+                        else PyPIConGPUFieldDump(
+                            name=diagnostic.fieldname,
+                            functor=diagnostic.functor if isinstance(diagnostic, DerivedFieldDump) else None,
+                        ),
                     )
                     for diagnostic in filter(lambda x: x.options == options, diagnostics)
                 ],
