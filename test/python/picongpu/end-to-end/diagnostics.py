@@ -38,6 +38,7 @@ from picongpu.picmi.diagnostics import (
     ParticleDump,
     TimeStepSpec,
     Counter,
+    MacroCounter,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -81,7 +82,7 @@ def generate_diagnostics(species):
         ParticleDump(species=species[0], options=options),
     ]
     native_fields = [FieldDump(fieldname=fieldname) for fieldname in ["E", "B"]]
-    derived_fields = [Counter(species=s) for s in species]
+    derived_fields = [Counter(species=s) for s in species] + [MacroCounter(species=s) for s in species]
     return particles + native_fields + derived_fields
 
 
@@ -139,7 +140,7 @@ class TestDiagnostics(TestCase):
 
     def test_counter_equals_density(self):
         for diag in self.sim.diagnostics:
-            if isinstance(diag, DerivedFieldDump):
+            if isinstance(diag, DerivedFieldDump) and diag.functor.name == "Counter":
                 from_checkpoint = read_densities_into_mesh(
                     self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5", NUMBER_OF_CELLS, CELL_SIZE
                 ).loc(axis=0)[*diag.species.name.split("_", maxsplit=1)]
@@ -148,6 +149,23 @@ class TestDiagnostics(TestCase):
                 # not quite sure about the factor 1/2 yet:
                 from_diagnostics = load_diagnostic_result(diag, self.result_path).transpose((2, 1, 0)) / 2
                 np.testing.assert_allclose(from_checkpoint, from_diagnostics)
+
+    def test_macro_counter_consistent_with_counter(self):
+        for diag in self.sim.diagnostics:
+            if isinstance(diag, DerivedFieldDump) and diag.functor.name == "MacroCounter":
+                # not quite sure about the factor 1/2 yet:
+                from_macro_counter = load_diagnostic_result(diag, self.result_path)
+                # This assumes that there is a Counter available for every MacroCounter.
+                counter = next(
+                    filter(
+                        lambda d: isinstance(d, DerivedFieldDump)
+                        and d.functor.name == "Counter"
+                        and d.species == diag.species,
+                        self.sim.diagnostics,
+                    )
+                )
+                from_counter = load_diagnostic_result(counter, self.result_path)
+                np.testing.assert_allclose(from_macro_counter, (from_counter > 0) * 2)
 
 
 if __name__ == "__main__":

@@ -53,7 +53,11 @@ class DerivedFieldDump(FieldDump):
         return super().__init__(*args, **kwargs)
 
 
-for attribute in PREDEFINED_DERIVED_ATTRIBUTES:
-    globals()[attribute] = lambda *args, **kwargs: DerivedFieldDump(
+def generate_predefined_attribute(attribute):
+    return lambda *args, **kwargs: DerivedFieldDump(
         *args, **kwargs, functor=ParticleFunctor(name=attribute, functor=None)
     )
+
+
+for attribute in PREDEFINED_DERIVED_ATTRIBUTES:
+    globals()[attribute] = generate_predefined_attribute(attribute)

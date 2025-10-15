@@ -57,7 +57,7 @@ def to_string(timestepspec: TimeStepSpec):
 
 
 NATIVE_FIELDS = ["E", "B", "J"]
-PREDEFINED_DERIVED_ATTRIBUTES = {"Counter": "particleCounter"}
+PREDEFINED_DERIVED_ATTRIBUTES = {"Counter": "particleCounter", "MacroCounter": "macroParticleCounter"}
 
 
 class Particle:
