@@ -44,6 +44,11 @@ from picongpu.picmi.diagnostics import (
 logging.basicConfig(level=logging.INFO)
 
 LAYOUT = GriddedLayout(n_macroparticles_per_cell=2)
+# This is a debugging shape.
+# It arranges for particles
+# to be counted exactly in the cell they belong to
+# and nowhere else.
+PARTICLE_SHAPE = "Counter"
 SPECIES = [
     Species(
         name="Gaussian_predefined",
@@ -53,6 +58,7 @@ SPECIES = [
     Species(
         name="SphereFlanks_free_form",
         particle_type="electron",
+        particle_shape=PARTICLE_SHAPE,
         initial_distribution=SphereFlanks().distributions["free_form"],
     ),
 ]

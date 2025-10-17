@@ -5,14 +5,32 @@ Authors: Hannes Troepgen, Brian Edward Marre
 License: GPLv3+
 """
 
-from ..rendering import RenderedObject
-from .attribute import Attribute, Position, Momentum
-from .constant import Constant, Charge, Mass, DensityRatio, GroundStateIonization, ElementProperties
-from .. import util
+import re
+import typing
+from enum import Enum
 
 import typeguard
-import typing
-import re
+
+from .. import util
+from ..rendering import RenderedObject
+from .attribute import Attribute, Momentum, Position
+from .constant import (
+    Charge,
+    Constant,
+    DensityRatio,
+    ElementProperties,
+    GroundStateIonization,
+    Mass,
+)
+
+
+class Shape(Enum):
+    CIC = "CIC"
+    COUNTER = "Counter"
+    NGP = "NGP"
+    PCS = "PCS"
+    PQS = "PQS"
+    TSC = "TSC"
 
 
 @typeguard.typechecked
@@ -40,6 +58,8 @@ class Species(RenderedObject):
 
     name = util.build_typesafe_property(str)
     """name of the species"""
+
+    shape = util.build_typesafe_property(Shape)
 
     def __str__(self) -> str:
         try:
@@ -194,6 +214,7 @@ class Species(RenderedObject):
         return {
             "name": self.name,
             "typename": self.get_cxx_typename(),
+            "shape": self.shape.value,
             "attributes": list(map(lambda attr: {"picongpu_name": attr.PICONGPU_NAME}, self.attributes)),
             "constants": constants_context,
         }

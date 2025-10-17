@@ -5,6 +5,7 @@ Authors: Hannes Troepgen, Brian Edward Marre
 License: GPLv3+
 """
 
+from picongpu.pypicongpu.species.species import Shape
 from .predefinedparticletypeproperties import PredefinedParticleTypeProperties
 from .interaction import Interaction
 
@@ -239,7 +240,6 @@ class Species(picmistandard.PICMI_Species):
 
         # error on unsupported options
         pypicongpu.util.unsupported("method", self.method)
-        pypicongpu.util.unsupported("particle shape", self.particle_shape)
         # @note placement params are respected in associated simulation object
 
         self.check(interaction)
@@ -283,6 +283,8 @@ class Species(picmistandard.PICMI_Species):
             s.constants.extend(interaction_constants)
         else:
             pypicongpu_model_by_picmi_model = None
+
+        s.shape = Shape[(self.particle_shape or "TSC").upper()]
 
         return s, pypicongpu_model_by_picmi_model
 

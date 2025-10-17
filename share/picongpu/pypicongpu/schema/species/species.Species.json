@@ -7,6 +7,7 @@
     "name",
     "typename",
     "attributes",
+    "shape",
     "constants"
   ],
   "properties": {
@@ -21,6 +22,9 @@
       "description": "name of c++ species type",
       "minLength": 1,
       "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "shape": {
+      "type": "string"
     },
     "attributes": {
       "type": "array",

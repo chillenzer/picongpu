@@ -83,7 +83,7 @@ namespace picongpu
             {{/constants}}
 
             particlePusher<UsedParticlePusher>,
-            shape<UsedParticleShape>,
+            shape<{{#shape}}particles::shapes::{{{shape}}}{{/shape}}{{^shape}}UsedParticleShape{{/shape}}>,
             interpolation<UsedField2Particle>,
             current<UsedParticleCurrentSolver>>;
 
