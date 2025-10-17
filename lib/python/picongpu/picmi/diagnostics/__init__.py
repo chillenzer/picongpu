@@ -14,7 +14,17 @@ from .png import Png
 from .timestepspec import TimeStepSpec
 from .checkpoint import Checkpoint
 from .particle_dump import ParticleDump
-from .field_dump import FieldDump, Counter, MacroCounter, DerivedFieldDump
+from .field_dump import (
+    FieldDump,
+    Counter,
+    MacroCounter,
+    DerivedFieldDump,
+    Density,
+    Energy,
+    EnergyDensity,
+    LarmorPower,
+    BoundElectronDensity,
+)
 from .backend_config import BackendConfig, OpenPMDConfig
 
 __all__ = [
@@ -25,6 +35,11 @@ __all__ = [
     "Binning",
     "Counter",
     "MacroCounter",
+    "BoundElectronDensity",
+    "Density",
+    "Energy",
+    "EnergyDensity",
+    "LarmorPower",
     "PhaseSpace",
     "EnergyHistogram",
     "MacroParticleCount",

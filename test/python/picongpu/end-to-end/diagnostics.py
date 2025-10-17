@@ -10,11 +10,7 @@ from pathlib import Path
 from unittest import TestCase, main
 
 import numpy as np
-from .arbitrary_parameters import (
-    CELL_SIZE,
-    NUMBER_OF_CELLS,
-    UPPER_BOUNDARY,
-)
+from .arbitrary_parameters import CELL_SIZE, NUMBER_OF_CELLS, UPPER_BOUNDARY, MACRO_PARTICLES_PER_CELL
 from .compare_particles import (
     load_diagnostic_result,
     read_densities_into_mesh,
@@ -37,9 +33,9 @@ from picongpu.picmi.diagnostics import (
     OpenPMDConfig,
     ParticleDump,
     TimeStepSpec,
-    Counter,
-    MacroCounter,
 )
+from picongpu.picmi.diagnostics.field_dump import PREDEFINED_DERIVED_ATTRIBUTES
+from picongpu.picmi import diagnostics
 
 logging.basicConfig(level=logging.INFO)
 
@@ -88,7 +84,13 @@ def generate_diagnostics(species):
         ParticleDump(species=species[0], options=options),
     ]
     native_fields = [FieldDump(fieldname=fieldname) for fieldname in ["E", "B"]]
-    derived_fields = [Counter(species=s) for s in species] + [MacroCounter(species=s) for s in species]
+    derived_fields = [
+        d
+        for s in species
+        for DerivedAttribute in map(lambda x: diagnostics.__dict__[x], PREDEFINED_DERIVED_ATTRIBUTES)
+        # LarmorPower and BoundElectronDensity need special attributes and those are not yet implemented
+        if (d := DerivedAttribute(species=s)).functor.name not in ["LarmorPower", "BoundElectronDensity"]
+    ]
     return particles + native_fields + derived_fields
 
 
@@ -108,6 +110,14 @@ def setup_sim():
 
 
 SIM = None
+
+DERIVED_FIELD_CONVERSIONS_FROM_COUNTER = {
+    "MacroCounter": lambda counter: (counter > 0) * MACRO_PARTICLES_PER_CELL,
+    # "Energy": lambda counter: np.zeros_like(counter),
+    # Looks like it works up to a pre-factor
+    # but getting the details right turned out to be non-trivial:
+    # 'Density': lambda counter: counter,
+}
 
 
 class TestDiagnostics(TestCase):
@@ -152,16 +162,14 @@ class TestDiagnostics(TestCase):
                 ).loc(axis=0)[*diag.species.name.split("_", maxsplit=1)]
                 # the particle counter does not include the factor of base density:
                 from_checkpoint /= 1.0e25
-                # not quite sure about the factor 1/2 yet:
+                # not quite sure about the factor 1/2 yet, could be MACRO_PARTICLES_PER_CELL?
                 from_diagnostics = load_diagnostic_result(diag, self.result_path).transpose((2, 1, 0)) / 2
                 np.testing.assert_allclose(from_checkpoint, from_diagnostics)
 
-    def test_macro_counter_consistent_with_counter(self):
+    def test_diagnostics_consistent_with_counter(self):
         for diag in self.sim.diagnostics:
-            if isinstance(diag, DerivedFieldDump) and diag.functor.name == "MacroCounter":
-                # not quite sure about the factor 1/2 yet:
-                from_macro_counter = load_diagnostic_result(diag, self.result_path)
-                # This assumes that there is a Counter available for every MacroCounter.
+            if isinstance(diag, DerivedFieldDump) and diag.functor.name in DERIVED_FIELD_CONVERSIONS_FROM_COUNTER:
+                from_diag = load_diagnostic_result(diag, self.result_path)
                 counter = next(
                     filter(
                         lambda d: isinstance(d, DerivedFieldDump)
@@ -171,7 +179,31 @@ class TestDiagnostics(TestCase):
                     )
                 )
                 from_counter = load_diagnostic_result(counter, self.result_path)
-                np.testing.assert_allclose(from_macro_counter, (from_counter > 0) * 2)
+                np.testing.assert_allclose(
+                    from_diag, DERIVED_FIELD_CONVERSIONS_FROM_COUNTER[diag.functor.name](from_counter)
+                )
+
+    def test_densities_consistent_with_non_normalised_values(self):
+        for diag in self.sim.diagnostics:
+            if isinstance(diag, DerivedFieldDump) and "Density" in diag.functor.name:
+                density_name = diag.functor.name
+                name = density_name.replace("Density", "")
+                try:
+                    nonnormalised_diag = next(
+                        filter(
+                            lambda d: isinstance(d, DerivedFieldDump)
+                            and d.functor.name == name
+                            and d.species == diag.species,
+                            self.sim.diagnostics,
+                        )
+                    )
+                except StopIteration:
+                    # We don't have non-normalised values available.
+                    pass
+                else:
+                    density = load_diagnostic_result(diag, self.result_path)
+                    nonnormalised = load_diagnostic_result(nonnormalised_diag, self.result_path)
+                    np.testing.assert_allclose(density, nonnormalised / np.prod(CELL_SIZE))
 
 
 if __name__ == "__main__":

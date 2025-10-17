@@ -10,6 +10,7 @@ import numpy as np
 NUMBER_OF_CELLS = [64, 64, 32]
 UPPER_BOUNDARY = np.array([64.0, 66.0, 74.0])
 CELL_SIZE = UPPER_BOUNDARY / NUMBER_OF_CELLS
+MACRO_PARTICLES_PER_CELL = 2
 
 ALL_ORIGINS = ["total", "global", "local", "moving_window", "local_with_guards"]
 ALL_ORIGINS_WITHOUT_GUARDS = [origin for origin in ALL_ORIGINS if not origin.endswith("guards")]
