@@ -120,6 +120,7 @@ class TestGroundStateIonization(unittest.TestCase):
                     "ionizer_picongpu_name": "BSI",
                     "ionization_electron_species": {
                         "name": "e",
+                        "shape": "TSC",
                         "typename": "species_e",
                         "attributes": [
                             {"picongpu_name": "position<position_pic>"},

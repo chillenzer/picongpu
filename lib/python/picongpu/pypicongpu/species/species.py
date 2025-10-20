@@ -211,10 +211,15 @@ class Species(RenderedObject):
             else:
                 constants_context[constant_name] = None
 
+        try:
+            shape = self.shape
+        except AttributeError:
+            shape = Shape["TSC"]
+
         return {
             "name": self.name,
             "typename": self.get_cxx_typename(),
-            "shape": self.shape.value,
+            "shape": shape.value,
             "attributes": list(map(lambda attr: {"picongpu_name": attr.PICONGPU_NAME}, self.attributes)),
             "constants": constants_context,
         }
