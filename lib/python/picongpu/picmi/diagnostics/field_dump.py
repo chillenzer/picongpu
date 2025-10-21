@@ -15,8 +15,8 @@ from picongpu.picmi.species import Species
 from picongpu.pypicongpu.output.openpmd_plugin import (
     NATIVE_FIELDS,
     PREDEFINED_DERIVED_ATTRIBUTES,
-    ParticleFunctor as PyPIConGPUParticleFunctor,
 )
+from picongpu.picmi.diagnostics.particle_functor import ParticleFunctor
 
 from .backend_config import BackendConfig, OpenPMDConfig
 from .timestepspec import TimeStepSpec
@@ -38,10 +38,6 @@ class NativeFieldDump(BaseModel):
     fieldname: Literal[*NATIVE_FIELDS]
 
 
-class ParticleFunctor(PyPIConGPUParticleFunctor):
-    pass
-
-
 class DerivedFieldDump(FieldDump):
     species: Species
     functor: ParticleFunctor
@@ -56,7 +52,9 @@ class DerivedFieldDump(FieldDump):
 
 def generate_predefined_attribute(attribute):
     return lambda *args, **kwargs: DerivedFieldDump(
-        *args, **kwargs, functor=ParticleFunctor(name=attribute, functor=None)
+        *args,
+        **kwargs,
+        functor=ParticleFunctor(name=attribute, functor=lambda particle: particle.get("position"), return_type=float),
     )
 
 

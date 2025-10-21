@@ -92,8 +92,7 @@ def generate_diagnostics(species):
         DerivedFieldDump(
             species=s,
             functor=ParticleFunctor(
-                name="TestFunctor",
-                functor=None,  # lambda particle: particle.get('kinetic energy'))
+                name="TestFunctor", functor=lambda particle: particle.get("kinetic energy"), return_type=float
             ),
         )
         for s in species
