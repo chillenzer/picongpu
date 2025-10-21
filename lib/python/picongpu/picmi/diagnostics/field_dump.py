@@ -49,7 +49,8 @@ class DerivedFieldDump(FieldDump):
     def __init__(self, *args, **kwargs):
         if "fieldname" in kwargs:
             raise ValueError("fieldname gets internally computed in a DerivedFieldDump. Please don't try to set it.")
-        kwargs["fieldname"] = f"{kwargs['species'].name}_all_{PREDEFINED_DERIVED_ATTRIBUTES[kwargs['functor'].name]}"
+        name = kwargs["functor"].name
+        kwargs["fieldname"] = f"{kwargs['species'].name}_all_{PREDEFINED_DERIVED_ATTRIBUTES.get(name, name)}"
         return super().__init__(*args, **kwargs)
 
 

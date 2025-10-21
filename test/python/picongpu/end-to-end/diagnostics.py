@@ -34,7 +34,7 @@ from picongpu.picmi.diagnostics import (
     ParticleDump,
     TimeStepSpec,
 )
-from picongpu.picmi.diagnostics.field_dump import PREDEFINED_DERIVED_ATTRIBUTES
+from picongpu.picmi.diagnostics.field_dump import PREDEFINED_DERIVED_ATTRIBUTES, ParticleFunctor
 from picongpu.picmi import diagnostics
 
 logging.basicConfig(level=logging.INFO)
@@ -80,9 +80,7 @@ def basic_simulation():
 
 def generate_diagnostics(species):
     options = OpenPMDConfig(file="other_name", ext=".h5", infix="", data_preparation_strategy="doubleBuffer")
-    particles = [ParticleDump(species=s) for s in species] + [
-        ParticleDump(species=species[0], options=options),
-    ]
+    particles = [ParticleDump(species=s) for s in species] + [ParticleDump(species=species[0], options=options)]
     native_fields = [FieldDump(fieldname=fieldname) for fieldname in ["E", "B"]]
     derived_fields = [
         d
@@ -90,6 +88,15 @@ def generate_diagnostics(species):
         for DerivedAttribute in map(lambda x: diagnostics.__dict__[x], PREDEFINED_DERIVED_ATTRIBUTES)
         # LarmorPower and BoundElectronDensity need special attributes and those are not yet implemented
         if (d := DerivedAttribute(species=s)).functor.name not in ["LarmorPower", "BoundElectronDensity"]
+    ] + [
+        DerivedFieldDump(
+            species=s,
+            functor=ParticleFunctor(
+                name="TestFunctor",
+                functor=None,  # lambda particle: particle.get('kinetic energy'))
+            ),
+        )
+        for s in species
     ]
     return particles + native_fields + derived_fields
 
@@ -204,6 +211,21 @@ class TestDiagnostics(TestCase):
                     density = load_diagnostic_result(diag, self.result_path)
                     nonnormalised = load_diagnostic_result(nonnormalised_diag, self.result_path)
                     np.testing.assert_allclose(density, nonnormalised / np.prod(CELL_SIZE))
+
+    def test_test_functor_energy(self):
+        for diag in self.sim.diagnostics:
+            if isinstance(diag, DerivedFieldDump) and diag.functor.name == "TestFunctor":
+                from_diag = load_diagnostic_result(diag, self.result_path)
+                energy = next(
+                    filter(
+                        lambda d: isinstance(d, DerivedFieldDump)
+                        and d.functor.name == "Energy"
+                        and d.species == diag.species,
+                        self.sim.diagnostics,
+                    )
+                )
+                from_energy = load_diagnostic_result(energy, self.result_path)
+                np.testing.assert_allclose(from_diag, from_energy)
 
 
 if __name__ == "__main__":
