@@ -5,13 +5,14 @@ Authors: Hannes Troepgen, Brian Edward Marre, Richard Pausch, Julian Lenz
 License: GPLv3+
 """
 
-from ..pypicongpu import grid
-from ..pypicongpu import util
+from typing import Literal
 
-from .copy_attributes import converts_to
-
+import numpy as np
 import picmistandard
 import typeguard
+
+from ..pypicongpu import grid, util
+from .copy_attributes import converts_to
 
 
 def _normalise_type(kw, key, t):
@@ -89,6 +90,18 @@ class Cartesian3DGrid(picmistandard.PICMI_Cartesian3DGrid):
             (self.upper_bound[1] - self.lower_bound[1]) / self.number_of_cells[1],
             (self.upper_bound[2] - self.lower_bound[2]) / self.number_of_cells[2],
         )
+
+    def compute_cell_index(self, position, mode: Literal["multi-dimensional", "linear"] = "linear"):
+        # floating point arithmetics is a little tricky here:
+        # Off-by-one errors are likely to happen.
+        # The additional `np.round` cured some problems for me but I feel like that's not the correct solution.
+        index = np.astype(
+            np.round((np.asarray(position) - np.asarray(self.lower_bound)) / np.asarray(self.picongpu_cell_size_si)),
+            int,
+        )
+        if mode == "linear":
+            index = np.ravel_multi_index(index, dims=self.number_of_cells)
+        return index
 
     def check(self):
         # todo check

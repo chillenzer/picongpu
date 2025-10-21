@@ -9,16 +9,8 @@ import logging
 from pathlib import Path
 from unittest import TestCase, main
 
+
 import numpy as np
-from .arbitrary_parameters import CELL_SIZE, NUMBER_OF_CELLS, UPPER_BOUNDARY, MACRO_PARTICLES_PER_CELL
-from .compare_particles import (
-    load_diagnostic_result,
-    read_densities_into_mesh,
-    read_particles,
-    sort_particles,
-    read_fields,
-)
-from .distributions import Gaussian, SphereFlanks
 from picongpu.picmi import (
     Cartesian3DGrid,
     ElectromagneticSolver,
@@ -34,8 +26,22 @@ from picongpu.picmi.diagnostics import (
     ParticleDump,
     TimeStepSpec,
 )
-from picongpu.picmi.diagnostics.field_dump import PREDEFINED_DERIVED_ATTRIBUTES, ParticleFunctor
-from picongpu.picmi import diagnostics
+from picongpu.picmi.diagnostics.particle_functor import ParticleFunctor
+
+from .arbitrary_parameters import (
+    CELL_SIZE,
+    MACRO_PARTICLES_PER_CELL,
+    NUMBER_OF_CELLS,
+    UPPER_BOUNDARY,
+)
+from .compare_particles import (
+    load_diagnostic_result,
+    read_densities_into_mesh,
+    read_fields,
+    read_particles,
+    sort_particles,
+)
+from .distributions import Gaussian, SphereFlanks
 
 logging.basicConfig(level=logging.INFO)
 
@@ -82,25 +88,23 @@ def generate_diagnostics(species):
     options = OpenPMDConfig(file="other_name", ext=".h5", infix="", data_preparation_strategy="doubleBuffer")
     particles = [ParticleDump(species=s) for s in species] + [ParticleDump(species=species[0], options=options)]
     native_fields = [FieldDump(fieldname=fieldname) for fieldname in ["E", "B"]]
+    functors = [
+        ParticleFunctor(name="macroParticleCounter", functor=lambda particle: 1, return_type=int),
+        ParticleFunctor(name="particleCounter", functor=lambda particle: particle.get("weighting"), return_type=float),
+        ParticleFunctor(name="TestFunctor", functor=lambda particle: particle.get("kinetic energy"), return_type=float),
+    ]
     derived_fields = [
-        d
-        for s in species
-        for DerivedAttribute in map(lambda x: diagnostics.__dict__[x], PREDEFINED_DERIVED_ATTRIBUTES)
-        # LarmorPower and BoundElectronDensity need special attributes and those are not yet implemented
-        if (d := DerivedAttribute(species=s)).functor.name not in ["LarmorPower", "BoundElectronDensity"]
-    ] + [
         DerivedFieldDump(
             species=s,
-            functor=ParticleFunctor(
-                name="TestFunctor", functor=lambda particle: particle.get("kinetic energy"), return_type=float
-            ),
+            functor=f,
         )
         for s in species
+        for f in functors
     ]
     return particles + native_fields + derived_fields
 
 
-RUN_DIR = ""
+RUN_DIR = "/tmp/pypicongpu-2025-10-21-13-20-55-run-mob7hxoi"
 
 
 def setup_sim():
@@ -225,6 +229,15 @@ class TestDiagnostics(TestCase):
                 )
                 from_energy = load_diagnostic_result(energy, self.result_path)
                 np.testing.assert_allclose(from_diag, from_energy)
+
+    def test_derived_fields(self):
+        particles = read_particles(self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5")
+        for diag in self.sim.diagnostics:
+            if isinstance(diag, DerivedFieldDump):
+                my_particles = particles.loc(axis=0)[*diag.species.name.split("_", maxsplit=1)]
+                expected = diag(self.sim.solver.grid, my_particles)
+                result = load_diagnostic_result(diag, self.result_path).transpose((2, 1, 0))
+                np.testing.assert_allclose(result, expected)
 
 
 if __name__ == "__main__":

@@ -5,15 +5,15 @@ Authors: Hannes Troepgen, Brian Edward Marre, Julian Lenz
 License: GPLv3+
 """
 
-from numpy import vectorize
-from ...pypicongpu import species
-
-
 import logging
-import typeguard
-import typing
-import sympy
 import traceback
+import typing
+
+import sympy
+import typeguard
+from numpy import vectorize
+
+from ...pypicongpu import species
 
 """
 note on rms_velocity:
