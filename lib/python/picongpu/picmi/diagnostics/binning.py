@@ -5,104 +5,17 @@ Authors: Julian Lenz
 License: GPLv3+
 """
 
-from typing import Any, Callable, Optional
-
-import sympy
 import typeguard
 
 from ...pypicongpu.output.binning import (
     Binning as PyPIConGPUBinning,
     BinningAxis as PyPIConGPUBinningAxis,
-    BinningFunctor as PyPIConGPUBinningFunctor,
     BinSpec as PyPIConGPUBinSpec,
 )
 from ...pypicongpu.species.species import Species as PyPIConGPUSpecies
 from ..species import Species as PICMISpecies
 from .timestepspec import TimeStepSpec
-
-_COORDINATE_SYSTEM = {
-    (
-        origin.lower(),
-        precision.lower(),
-        unit.lower(),
-    ): tuple(sympy.Symbol(f"{c}_{precision.lower()}_{unit.lower()}") for c in coords)
-    for (origin, coords) in (
-        ("TOTAL", ("xt", "yt", "zt")),
-        ("GLOBAL", ("xg", "yg", "zg")),
-        ("LOCAL", ("xl", "yl", "zl")),
-        ("MOVING_WINDOW", ("xmw", "ymw", "zmw")),
-        ("LOCAL_WITH_GUARDS", ("xlg", "ylg", "zlg")),
-    )
-    for precision in ("CELL", "SUB_CELL")
-    for unit in ("CELL", "PIC", "SI")
-}
-
-
-class BinningParticle:
-    def __init__(self):
-        self.used_attributes = {}
-
-    def get_attribute_map(self):
-        return self.used_attributes
-
-    def get(self, attribute, **kwargs):
-        if attribute == "position":
-            origin = kwargs.get("origin", "total")
-            precision = kwargs.get("precision", "cell")
-            unit = kwargs.get("unit", "cell")
-            symbols = _COORDINATE_SYSTEM[(origin, precision, unit)]
-            self.used_attributes |= {symbols: ("position", origin, precision, unit)}
-
-        elif attribute == "momentum":
-            symbols = sympy.symbols("px,py,pz")
-            self.used_attributes |= {symbols: "momentum"}
-
-        elif attribute in ["gamma", "kinetic energy", "velocity"]:
-            # This relies on python dictionaries having a stable ordering.
-            # We first add mass and momentum
-            # and later use their symbols inside of the same preamble.
-            self.get("mass")
-            self.get("momentum")
-            if attribute == "gamma":
-                symbols = sympy.Symbol("gamma")
-            if attribute == "kinetic energy":
-                symbols = sympy.Symbol("Ekin")
-            if attribute == "velocity":
-                symbols = sympy.symbols("vx,vy,vz")
-            self.used_attributes |= {symbols: attribute}
-
-        else:
-            symbols = sympy.Symbol(attribute)
-            self.used_attributes |= {symbols: attribute}
-
-        return symbols
-
-
-@typeguard.typechecked
-class BinningFunctor:
-    def check(self):
-        pass
-
-    def __init__(
-        self,
-        name: str,
-        functor: Callable[[BinningParticle], Any],
-        return_type: type | str,
-    ):
-        self.name = name
-        self.functor = functor
-        self.return_type = return_type
-
-    def get_as_pypicongpu(self) -> PyPIConGPUBinningFunctor:
-        self.check()
-        particle = BinningParticle()
-        functor_expression = self.functor(particle)
-        return PyPIConGPUBinningFunctor(
-            name=self.name,
-            functor_expression=functor_expression,
-            attribute_mapping=particle.get_attribute_map(),
-            return_type=self.return_type,
-        )
+from .particle_functor import ParticleFunctor as BinningFunctor
 
 
 @typeguard.typechecked
@@ -148,10 +61,10 @@ class Binning:
         deposition_functor: BinningFunctor,
         axes: list[BinningAxis],
         species: PICMISpecies | list[PICMISpecies],
-        period: Optional[TimeStepSpec] = None,
-        openPMD: Optional[dict] = None,
-        openPMDExt: Optional[str] = None,
-        openPMDInfix: Optional[str] = None,
+        period: TimeStepSpec | None = None,
+        openPMD: dict | None = None,
+        openPMDExt: str | None = None,
+        openPMDInfix: str | None = None,
         dumpPeriod: int = 1,
     ):
         self.name = name
