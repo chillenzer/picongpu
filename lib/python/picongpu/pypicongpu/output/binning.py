@@ -6,87 +6,16 @@ License: GPLv3+
 """
 
 import json
-import numbers
-
 from typing import Optional
-from .timestepspec import TimeStepSpec
-from ..rendering.renderedobject import RenderedObject
-from ..rendering.pmaccprinter import PMAccPrinter
-from ..species import Species
-from .. import util
-from .plugin import Plugin
 
 import typeguard
 
-
-def by_bracket(attribute):
-    return f"particle[{attribute}_]"
-
-
-ACCESSORS = {
-    (
-        "position",
-        origin.lower(),
-        precision.lower(),
-        unit.lower(),
-    ): f"getParticlePosition<DomainOrigin::{origin}, PositionPrecision::{precision}, PositionUnits::{unit}>(domainInfo, particle)"
-    for origin in ("TOTAL", "GLOBAL", "LOCAL", "MOVING_WINDOW", "LOCAL_WITH_GUARDS")
-    for precision in ("CELL", "SUB_CELL")
-    for unit in ("CELL", "PIC", "SI")
-} | {
-    "mass": "picongpu::traits::attribute::getMass(particle[weighting_], particle)",
-    # CAUTION: The names in the gamma formula are currently hardcoded.
-    # We'll certainly trip over this, should we ever dare to change the internal names.
-    "gamma": "picongpu::Gamma()(momentum::type{px, py, pz}, mass)",
-    "kinetic energy": "picongpu::KinEnergy()(momentum::type{px, py, pz}, mass)",
-    "velocity": "picongpu::Velocity()(momentum::type{px, py, pz}, mass)",
-    "charge": "picongpu::traits::attribute::getCharge(particle[weighting_], particle)",
-    "charge_state": "picongpu::traits::attribute::getChargeState(particle)",
-    "damped_weighting": "picongpu::traits::attribute::getDampedWeighting(particle)",
-    "timestep": "domainInfo.currentStep",
-}
-
-
-def symbol_to_string(symbol):
-    return str(symbol) if not isinstance(symbol, tuple) else "[" + ",".join(map(str, symbol)) + "]"
-
-
-def generate_preamble(attribute_mapping):
-    return [
-        {"statement": f"auto const {symbol_to_string(symbol)} = {ACCESSORS.get(attribute, by_bracket(attribute))};"}
-        for symbol, attribute in attribute_mapping.items()
-    ]
-
-
-def translate_to_cpp_type(return_type):
-    try:
-        if issubclass(return_type, numbers.Integral):
-            return "int"
-        if issubclass(return_type, numbers.Real):
-            return "float_X"
-        if issubclass(return_type, bool):
-            return "bool"
-    except TypeError:
-        pass
-    if isinstance(return_type, str):
-        return return_type
-    raise ValueError(f"Cannot translate {return_type=} to a C++ type.")
-
-
-class BinningFunctor(RenderedObject):
-    def __init__(self, name, functor_expression, attribute_mapping, return_type):
-        self.name = name
-        self.functor_expression = functor_expression
-        self.attribute_mapping = attribute_mapping
-        self.return_type = return_type
-
-    def _get_serialized(self):
-        return {
-            "name": self.name,
-            "functor_expression": PMAccPrinter().doprint(self.functor_expression),
-            "functor_preamble": generate_preamble(self.attribute_mapping),
-            "return_type": translate_to_cpp_type(self.return_type),
-        }
+from .. import util
+from ..rendering.renderedobject import RenderedObject
+from ..species import Species
+from .plugin import Plugin
+from .timestepspec import TimeStepSpec
+from .particle_functor import ParticleFunctor as BinningFunctor
 
 
 class BinSpec(RenderedObject):

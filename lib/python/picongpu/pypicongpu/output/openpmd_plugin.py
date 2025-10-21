@@ -10,7 +10,7 @@ from hashlib import sha256
 from os import PathLike
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Annotated, Any, Callable, Iterable, Literal
+from typing import Annotated, Iterable, Literal
 
 import tomli_w
 from pydantic import AfterValidator, BaseModel
@@ -18,6 +18,7 @@ from pydantic import AfterValidator, BaseModel
 from picongpu.pypicongpu.output.plugin import Plugin
 from picongpu.pypicongpu.output.timestepspec import TimeStepSpec
 from picongpu.pypicongpu.species.species import Species
+from picongpu.pypicongpu.output.particle_functor import ParticleFunctor
 
 
 def _unique(iterable):
@@ -70,11 +71,6 @@ PREDEFINED_DERIVED_ATTRIBUTES = {
 
 class Particle:
     pass
-
-
-class ParticleFunctor(BaseModel):
-    name: str
-    functor: Callable[[Particle], Any] | None = None
 
 
 class FieldDump(BaseModel):

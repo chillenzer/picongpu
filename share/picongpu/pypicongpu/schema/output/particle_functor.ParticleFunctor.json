@@ -1,5 +1,5 @@
 {
-  "$id": "https://registry.hzdr.de/crp/picongpu/schema/picongpu.pypicongpu.output.binning.BinningFunctor",
+  "$id": "https://registry.hzdr.de/crp/picongpu/schema/picongpu.pypicongpu.output.particle_functor.ParticleFunctor",
   "type": "object",
   "description": "Functor for flexible binning",
   "unevaluatedProperties": false,
