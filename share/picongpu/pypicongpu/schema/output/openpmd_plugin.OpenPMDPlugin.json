@@ -11,24 +11,6 @@
     "config_filename": {
       "type": "string"
     },
-    "derived_fields": {
-      "unevaluatedProperties": false,
-      "required": [
-        "name",
-        "functor"
-      ],
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "functor": {
-          "anyOf": [
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    }
+    "derived_fields": {}
   }
 }

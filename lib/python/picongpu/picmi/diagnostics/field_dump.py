@@ -26,6 +26,7 @@ class FieldDump(BaseModel):
     fieldname: str
     period: TimeStepSpec = TimeStepSpec[:]("steps")
     options: BackendConfig = OpenPMDConfig(file="simData")
+    is_predefined: bool = True
 
     class Config:
         arbitrary_types_allowed = True
@@ -41,6 +42,7 @@ class NativeFieldDump(BaseModel):
 class DerivedFieldDump(FieldDump):
     species: Species
     functor: ParticleFunctor
+    is_predefined: bool = False
 
     def __init__(self, *args, **kwargs):
         if "fieldname" in kwargs:
@@ -55,6 +57,7 @@ def generate_predefined_attribute(attribute):
         *args,
         **kwargs,
         functor=ParticleFunctor(name=attribute, functor=lambda particle: particle.get("position"), return_type=float),
+        is_predefined=True,
     )
 
 

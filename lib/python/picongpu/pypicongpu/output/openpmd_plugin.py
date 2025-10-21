@@ -76,6 +76,7 @@ class Particle:
 class FieldDump(BaseModel):
     name: str
     functor: ParticleFunctor | None = None
+    is_predefined: bool = False
 
     def get_rendering_context(self) -> dict:
         return self.model_dump(mode="json")
@@ -142,7 +143,9 @@ class OpenPMDPlugin(Plugin):
         content = self._generate_config_file()
         return {"config_filename": str(self.config_filename(content, context="runtime"))} | {
             "derived_fields": _unique(
-                source[1].functor.model_dump(mode="json")
+                source[1].functor.model_dump(mode="json") | {"predefined": False}
+                if not source[1].is_predefined
+                else {"name": source[1].functor.name, "functor": None, "predefined": True}
                 for source in filter(lambda x: isinstance(x[1], FieldDump) and x[1].functor is not None, self.sources)
             )
         }

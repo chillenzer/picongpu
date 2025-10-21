@@ -509,6 +509,7 @@ class Simulation(picmistandard.PICMI_Simulation):
                             functor=diagnostic.functor.get_as_pypicongpu()
                             if isinstance(diagnostic, DerivedFieldDump)
                             else None,
+                            is_predefined=diagnostic.is_predefined,
                         ),
                     )
                     for diagnostic in filter(lambda x: x.options == options, diagnostics)
