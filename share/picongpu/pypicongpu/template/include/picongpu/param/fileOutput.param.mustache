@@ -33,49 +33,45 @@ namespace picongpu
     namespace deriveField = particles::particleToGrid;
 
     namespace particles::particleToGrid::derivedAttributes {
-    struct TestFunctor {
-                    HDINLINE float1_64 getUnit() const
-                    {
-                        return sim.unit.energy();
-                    }
+{{#output}}
+{{#typeID.openPMD}}
+{{#data.derived_fields}}
+{{^predefined}}
 
-                    HINLINE std::vector<float_64> getUnitDimension() const
-                    {
-                        /* L, M, T, I, theta, N, J
-                         *
-                         * Energy is in Joule: J = kg * m^2 / s^2
-                         *   -> L^2 * M * T^-2
-                         */
-                        std::vector<float_64> unitDimension(7, 0.0);
-                        unitDimension.at(SIBaseUnits::length) = 2.0;
-                        unitDimension.at(SIBaseUnits::mass) = 1.0;
-                        unitDimension.at(SIBaseUnits::time) = -2.0;
+    struct {{{name}}} {
+         HDINLINE float1_64 getUnit() const
+         {
+             return 1.;
+         }
 
-                        return unitDimension;
-                    }
+         HINLINE std::vector<float_64> getUnitDimension() const
+         {
+             std::vector<float_64> unitDimension(7, 0.0);
+             return unitDimension;
+         }
 
-                    HINLINE static std::string getName()
-                    {
-                        return "TestFunctor";
-                    }
-                template<class T_Particle>
-                DINLINE float_X operator()(T_Particle& particle) const
-                {
-                    /* read existing attributes */
-                    float_X const weighting = particle[weighting_];
-                    float3_X const mom = particle[momentum_];
-                    float_X const mass = picongpu::traits::attribute::getMass(weighting, particle);
+         HINLINE static std::string getName()
+         {
+             return "{{{name}}}";
+         }
 
-                    return KinEnergy<>()(mom, mass);
-                }
+         template<class T_Particle>
+         DINLINE {{{return_type}}} operator()(T_Particle& particle) const
+         {
+              {{#functor_preamble}}
+              {{{statement}}}
+              {{/functor_preamble}}
+              return {{{functor_expression}}};
+         }
 
-                };
+    };
 
-                template<>
-                struct IsWeighted<TestFunctor> : std::true_type
-                {
-                };
-
+    template<>
+    struct IsWeighted<TestFunctor> : std::true_type {};
+{{/predefined}}
+{{/data.derived_fields}}
+{{/typeID.openPMD}}
+{{/output}}
     }
 
 {{#output}}
