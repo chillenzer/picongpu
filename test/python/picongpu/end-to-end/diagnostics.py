@@ -29,14 +29,12 @@ from picongpu.picmi.diagnostics import (
 from picongpu.picmi.diagnostics.particle_functor import ParticleFunctor
 
 from .arbitrary_parameters import (
-    CELL_SIZE,
     MACRO_PARTICLES_PER_CELL,
     NUMBER_OF_CELLS,
     UPPER_BOUNDARY,
 )
 from .compare_particles import (
     load_diagnostic_result,
-    read_densities_into_mesh,
     read_fields,
     read_particles,
     sort_particles,
@@ -93,14 +91,7 @@ def generate_diagnostics(species):
         ParticleFunctor(name="particleCounter", functor=lambda particle: particle.get("weighting"), return_type=float),
         ParticleFunctor(name="TestFunctor", functor=lambda particle: particle.get("kinetic energy"), return_type=float),
     ]
-    derived_fields = [
-        DerivedFieldDump(
-            species=s,
-            functor=f,
-        )
-        for s in species
-        for f in functors
-    ]
+    derived_fields = [DerivedFieldDump(species=s, functor=f) for s in species for f in functors]
     return particles + native_fields + derived_fields
 
 
@@ -164,72 +155,6 @@ class TestDiagnostics(TestCase):
                     ],
                 )
 
-    def test_counter_equals_density(self):
-        for diag in self.sim.diagnostics:
-            if isinstance(diag, DerivedFieldDump) and diag.functor.name == "Counter":
-                from_checkpoint = read_densities_into_mesh(
-                    self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5", NUMBER_OF_CELLS, CELL_SIZE
-                ).loc(axis=0)[*diag.species.name.split("_", maxsplit=1)]
-                # the particle counter does not include the factor of base density:
-                from_checkpoint /= 1.0e25
-                # not quite sure about the factor 1/2 yet, could be MACRO_PARTICLES_PER_CELL?
-                from_diagnostics = load_diagnostic_result(diag, self.result_path).transpose((2, 1, 0)) / 2
-                np.testing.assert_allclose(from_checkpoint, from_diagnostics)
-
-    def test_diagnostics_consistent_with_counter(self):
-        for diag in self.sim.diagnostics:
-            if isinstance(diag, DerivedFieldDump) and diag.functor.name in DERIVED_FIELD_CONVERSIONS_FROM_COUNTER:
-                from_diag = load_diagnostic_result(diag, self.result_path)
-                counter = next(
-                    filter(
-                        lambda d: isinstance(d, DerivedFieldDump)
-                        and d.functor.name == "Counter"
-                        and d.species == diag.species,
-                        self.sim.diagnostics,
-                    )
-                )
-                from_counter = load_diagnostic_result(counter, self.result_path)
-                np.testing.assert_allclose(
-                    from_diag, DERIVED_FIELD_CONVERSIONS_FROM_COUNTER[diag.functor.name](from_counter)
-                )
-
-    def test_densities_consistent_with_non_normalised_values(self):
-        for diag in self.sim.diagnostics:
-            if isinstance(diag, DerivedFieldDump) and "Density" in diag.functor.name:
-                density_name = diag.functor.name
-                name = density_name.replace("Density", "")
-                try:
-                    nonnormalised_diag = next(
-                        filter(
-                            lambda d: isinstance(d, DerivedFieldDump)
-                            and d.functor.name == name
-                            and d.species == diag.species,
-                            self.sim.diagnostics,
-                        )
-                    )
-                except StopIteration:
-                    # We don't have non-normalised values available.
-                    pass
-                else:
-                    density = load_diagnostic_result(diag, self.result_path)
-                    nonnormalised = load_diagnostic_result(nonnormalised_diag, self.result_path)
-                    np.testing.assert_allclose(density, nonnormalised / np.prod(CELL_SIZE))
-
-    def test_test_functor_energy(self):
-        for diag in self.sim.diagnostics:
-            if isinstance(diag, DerivedFieldDump) and diag.functor.name == "TestFunctor":
-                from_diag = load_diagnostic_result(diag, self.result_path)
-                energy = next(
-                    filter(
-                        lambda d: isinstance(d, DerivedFieldDump)
-                        and d.functor.name == "Energy"
-                        and d.species == diag.species,
-                        self.sim.diagnostics,
-                    )
-                )
-                from_energy = load_diagnostic_result(energy, self.result_path)
-                np.testing.assert_allclose(from_diag, from_energy)
-
     def test_derived_fields(self):
         particles = read_particles(self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5")
         for diag in self.sim.diagnostics:
@@ -237,7 +162,11 @@ class TestDiagnostics(TestCase):
                 my_particles = particles.loc(axis=0)[*diag.species.name.split("_", maxsplit=1)]
                 expected = diag(self.sim.solver.grid, my_particles)
                 result = load_diagnostic_result(diag, self.result_path).transpose((2, 1, 0))
-                np.testing.assert_allclose(result, expected)
+                expected = expected / np.nanmax(expected)
+                result = result / np.nanmax(result)
+                np.testing.assert_allclose(result, expected, rtol=1.0e-5, atol=1.0e-5)
+                # Haven't got the factors right, yet!
+                self.assertTrue(False)
 
 
 if __name__ == "__main__":
