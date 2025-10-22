@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import openpmd_api as opmd
 import pandas as pd
-from picongpu.picmi.diagnostics import ParticleDump
+from picongpu.picmi.diagnostics import ParticleDump, Binning
 from openpmd_api.openpmd_api_cxx import ErrorWrongAPIUsage
 
 
@@ -17,6 +17,8 @@ def load_diagnostic_result(diagnostic, result_path):
     path = Path(str(diagnostic.result_path(result_path)).replace("%06T", 6 * "0"))
     if isinstance(diagnostic, ParticleDump):
         return read_particles(path).loc(axis=0)[*diagnostic.species.name.split("_", maxsplit=1)]
+    if isinstance(diagnostic, Binning):
+        return read_fields(path, ["Binning"])["Binning"]
     return read_fields(path, [diagnostic.fieldname])[diagnostic.fieldname]
 
 

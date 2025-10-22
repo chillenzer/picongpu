@@ -5,17 +5,21 @@ Authors: Julian Lenz
 License: GPLv3+
 """
 
+from pathlib import Path
+
+import numpy as np
 import typeguard
 
-from ...pypicongpu.output.binning import (
-    Binning as PyPIConGPUBinning,
-    BinningAxis as PyPIConGPUBinningAxis,
-    BinSpec as PyPIConGPUBinSpec,
-)
+from picongpu.picmi.diagnostics.backend_config import OpenPMDConfig
+
+from ...pypicongpu.output.binning import Binning as PyPIConGPUBinning
+from ...pypicongpu.output.binning import BinningAxis as PyPIConGPUBinningAxis
+from ...pypicongpu.output.binning import BinSpec as PyPIConGPUBinSpec
 from ...pypicongpu.species.species import Species as PyPIConGPUSpecies
 from ..species import Species as PICMISpecies
-from .timestepspec import TimeStepSpec
+from .particle_functor import Particle, make_particle
 from .particle_functor import ParticleFunctor as BinningFunctor
+from .timestepspec import TimeStepSpec
 
 
 @typeguard.typechecked
@@ -28,6 +32,12 @@ class BinSpec:
 
     def get_as_pypicongpu(self):
         return PyPIConGPUBinSpec(self.kind.lower().capitalize(), self.start, self.stop, self.nsteps)
+
+    @property
+    def bins(self):
+        if self.kind.lower() == "linear":
+            return np.linspace(self.start, self.stop, self.nsteps + 1, endpoint=True)
+        raise NotImplementedError("Computing bins for other than linear BinSpecs is not implemented.")
 
 
 @typeguard.typechecked
@@ -51,6 +61,9 @@ class BinningAxis:
             bin_spec=self.bin_spec.get_as_pypicongpu(),
             use_overflow_bins=self.use_overflow_bins,
         )
+
+    def __call__(self, particle):
+        return np.digitize(self.functor(particle)[self.functor.name].to_numpy(), self.bin_spec.bins)
 
 
 @typeguard.typechecked
@@ -79,6 +92,11 @@ class Binning:
         self.openPMDInfix = openPMDInfix
         self.dumpPeriod = dumpPeriod
 
+    def result_path(self, prefix_path):
+        return OpenPMDConfig(
+            file=self.name, ext=self.openPMDExt or ".bp5", infix=self.openPMDInfix or "_%06T"
+        ).result_path(prefix_path=Path(prefix_path) / "simOutput" / "binningOpenPMD")
+
     def get_as_pypicongpu(
         self,
         dict_species_picmi_to_pypicongpu: dict[PICMISpecies, PyPIConGPUSpecies],
@@ -100,3 +118,12 @@ class Binning:
             openPMDInfix=self.openPMDInfix,
             dumpPeriod=self.dumpPeriod,
         )
+
+    def __call__(self, particle):
+        if not isinstance(particle, Particle):
+            return self(make_particle(particle))
+        result = np.zeros([a.bin_spec.nsteps for a in self.axes])
+        result[np.transpose([axis(particle) for axis in self.axes])] += self.deposition_functor(particle)[
+            self.deposition_functor.name
+        ]
+        return result

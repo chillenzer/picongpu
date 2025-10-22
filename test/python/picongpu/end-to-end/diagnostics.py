@@ -19,6 +19,7 @@ from picongpu.picmi import (
     Species,
 )
 from picongpu.picmi.diagnostics import (
+    Binning,
     Checkpoint,
     DerivedFieldDump,
     FieldDump,
@@ -43,6 +44,7 @@ from .compare_particles import (
     sort_particles,
 )
 from .distributions import Gaussian, SphereFlanks, _make_vector
+from .binning_functors import POSITION_AXES
 
 logging.basicConfig(level=logging.INFO)
 
@@ -106,72 +108,72 @@ def larmor_power(particle):
     return el_factor * (mom_dt.magnitude() ** 2 - momentumToBetaConvert**2 * cross(momentum, mom_dt).magnitude() ** 2)
 
 
-def generate_diagnostics(species):
-    options = OpenPMDConfig(file="other_name", ext=".h5", infix="", data_preparation_strategy="doubleBuffer")
-    particles = [ParticleDump(species=s) for s in species] + [ParticleDump(species=species[0], options=options)]
-    native_fields = [FieldDump(fieldname=fieldname) for fieldname in ["E", "B"]]
-    functors = [
-        # Currently no eligible particles available:
-        # ParticleFunctor(
-        #     name="bound_electrons", functor=lambda particle: particle.get("boundElectrons"), return_type=float
-        # ),
-        # Somehow off by some factor:
-        # ParticleFunctor(
-        #     name="charge_density",
-        #     functor=lambda particle: particle.get("charge") / np.prod(CELL_SIZE),
-        #     return_type=float,
-        # ),
-        ParticleFunctor(name="particle_counter", functor=lambda particle: particle.get("weighting"), return_type=float),
-        ParticleFunctor(
-            name="density", functor=lambda particle: particle.get("weighting") / np.prod(CELL_SIZE), return_type=float
-        ),
-        ParticleFunctor(
-            name="kinetic_energy", functor=lambda particle: particle.get("kinetic energy"), return_type=float
-        ),
-        ParticleFunctor(
-            name="kinetic_energy_density",
-            functor=lambda particle: particle.get("kinetic energy") / np.prod(CELL_SIZE),
-            return_type=float,
-        ),
-        ParticleFunctor(
-            name="kinetic_energy_density_cutoff",
-            functor=lambda particle: Piecewise(
-                (
-                    particle.get("kinetic energy") / np.prod(CELL_SIZE),
-                    particle.get("kinetic energy") < CUTOFF_ENERGY * particle.get("weighting"),
-                ),
-                (0.0, True),
+FUNCTORS = [
+    # Currently no eligible particles available:
+    # ParticleFunctor(name="bound_electrons", functor=lambda p: p.get("boundElectrons")),
+    # Somehow off by some factor:
+    # ParticleFunctor(name="charge_density", functor=lambda p: p.get("charge") / np.prod(CELL_SIZE)),
+    ParticleFunctor(name="particle_counter", functor=lambda p: p.get("weighting")),
+    ParticleFunctor(name="density", functor=lambda p: p.get("weighting") / np.prod(CELL_SIZE)),
+    ParticleFunctor(name="kinetic_energy", functor=lambda p: p.get("kinetic energy")),
+    ParticleFunctor(name="kinetic_energy_density", functor=lambda p: p.get("kinetic energy") / np.prod(CELL_SIZE)),
+    ParticleFunctor(
+        name="kinetic_energy_density_cutoff",
+        functor=lambda p: Piecewise(
+            (
+                p.get("kinetic energy") / np.prod(CELL_SIZE),
+                p.get("kinetic energy") < CUTOFF_ENERGY * p.get("weighting"),
             ),
-            return_type=float,
+            (0.0, True),
         ),
-        # Currently no eligible particles available:
-        # ParticleFunctor(name="larmor_power", functor=larmor_power, return_type=float),
-        ParticleFunctor(name="macroparticle_counter", functor=lambda _: 1, return_type=int),
-        # Somehow off by some factor:
-        # ParticleFunctor(
-        #     name="mid_current_density_x",
-        #     functor=lambda particle: particle.get("charge")
-        #     / np.prod(CELL_SIZE)
-        #     * particle.get("momentum")[0]
-        #     / (particle.get("gamma") * particle.get("mass")),
-        #     return_type=int,
-        # ),
-        ParticleFunctor(name="momentum_y", functor=lambda particle: particle.get("momentum")[1], return_type=float),
-        # Duplicated just to test what happens:
-        ParticleFunctor(name="momentum_y", functor=lambda particle: particle.get("momentum")[1], return_type=float),
-        ParticleFunctor(
-            name="momentum_density_z",
-            functor=lambda particle: particle.get("momentum")[2] / np.prod(CELL_SIZE),
-            return_type=float,
-        ),
-        ParticleFunctor(
-            name="weighted_velocity_x",
-            functor=lambda particle: particle.get("velocity")[0] * particle.get("weighting"),
-            return_type=float,
-        ),
+    ),
+    # Currently no eligible particles available:
+    # ParticleFunctor(name="larmor_power", functor=larmor_power),
+    ParticleFunctor(name="macroparticle_counter", functor=lambda _: 1, return_type=int),
+    # Somehow off by some factor:
+    ParticleFunctor(
+        name="mid_current_density_x",
+        functor=lambda p: p.get("charge")
+        / np.prod(CELL_SIZE)
+        * p.get("momentum")[0]
+        / (p.get("gamma") * p.get("mass")),
+    ),
+    ParticleFunctor(name="momentum_y", functor=lambda p: p.get("momentum")[1]),
+    # Duplicated just to test what happens:
+    # ParticleFunctor(name="momentum_y", functor=lambda p: p.get("momentum")[1]),
+    ParticleFunctor(name="momentum_density_z", functor=lambda p: p.get("momentum")[2] / np.prod(CELL_SIZE)),
+    ParticleFunctor(name="weighted_velocity_x", functor=lambda p: p.get("velocity")[0] * p.get("weighting")),
+]
+
+
+def generate_particle_dumps(species):
+    options = OpenPMDConfig(file="other_name", ext=".h5", infix="", data_preparation_strategy="doubleBuffer")
+    return [ParticleDump(species=s) for s in species] + [ParticleDump(species=species[0], options=options)]
+
+
+def generate_native_field_dumps():
+    return [FieldDump(fieldname=fieldname) for fieldname in ["E", "B"]]
+
+
+def generate_derived_field_dumps(species, functors):
+    return [DerivedFieldDump(species=s, functor=f) for s in species for f in functors]
+
+
+def generate_derived_field_dumps_as_binnings(species, functors):
+    return [
+        Binning(name=f"{s.name}_{f.name}_binning", deposition_functor=f, axes=POSITION_AXES, species=s)
+        for s in species
+        for f in functors
     ]
-    derived_fields = [DerivedFieldDump(species=s, functor=f) for s in species for f in functors]
-    return particles + native_fields + derived_fields
+
+
+def generate_diagnostics(species, functors):
+    return (
+        generate_particle_dumps(species)
+        + generate_native_field_dumps()
+        + generate_derived_field_dumps(species, functors)
+        + generate_derived_field_dumps_as_binnings(species, functors)
+    )
 
 
 RUN_DIR = ""
@@ -181,7 +183,7 @@ def setup_sim():
     sim = basic_simulation()
     for species in SPECIES:
         sim.add_species(species, LAYOUT)
-    sim.diagnostics = [Checkpoint(TimeStepSpec[:])] + generate_diagnostics(SPECIES)
+    sim.diagnostics = [Checkpoint(TimeStepSpec[:])] + generate_diagnostics(SPECIES, FUNCTORS)
     if RUN_DIR:
         sim.picongpu_get_runner().run_dir = RUN_DIR
     else:
@@ -236,6 +238,14 @@ class TestDiagnostics(TestCase):
                 # The openPMD data apparently has NaNs where there wasn't a particle at all.
                 result[np.isnan(result)] = 0.0
                 np.testing.assert_allclose(result, expected, rtol=1.0e-5, atol=1.0e-5)
+
+    def test_compare_derived_fields_and_binning(self):
+        for dump, binning in zip(
+            generate_derived_field_dumps(SPECIES, FUNCTORS), generate_derived_field_dumps_as_binnings(SPECIES, FUNCTORS)
+        ):
+            np.testing.assert_allclose(
+                load_diagnostic_result(dump, self.result_path), load_diagnostic_result(binning, self.result_path)
+            )
 
 
 if __name__ == "__main__":

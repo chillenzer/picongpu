@@ -162,7 +162,7 @@ class ParticleFunctor:
         self,
         name: str,
         functor: Callable[[Particle], Any],
-        return_type: type | str,
+        return_type: type | str = float,
     ):
         self.name = name
         self.functor = functor
