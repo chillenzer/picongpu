@@ -59,6 +59,10 @@ class AbstractParticle(Particle):
             my_symbols = symbols("px,py,pz")
             self.used_attributes |= {my_symbols: "momentum"}
 
+        elif attribute == "momentumPrev1":
+            my_symbols = symbols("p1x,p1y,p1z")
+            self.used_attributes |= {my_symbols: "momentumPrev1"}
+
         elif attribute in ["gamma", "kinetic energy", "velocity"]:
             # This relies on python dictionaries having a stable ordering.
             # We first add mass and momentum
@@ -95,6 +99,11 @@ def attribute_lookup_information(attribute, **kwargs):
         return (
             symbols(["momentum_x", "momentum_y", "momentum_z"]),
             [Symbol("momentum_x"), Symbol("momentum_y"), Symbol("momentum_z")],
+        )
+    if attribute == "momentumPrev1":
+        return (
+            symbols(["momentum_prev1_x", "momentum_prev1_y", "momentum_prev1_z"]),
+            [Symbol("momentum_prev1_x"), Symbol("momentum_prev1_y"), Symbol("momentum_prev1_z")],
         )
     if attribute == "gamma":
         return (

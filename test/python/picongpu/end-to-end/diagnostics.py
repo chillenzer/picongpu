@@ -28,6 +28,8 @@ from picongpu.picmi.diagnostics import (
 )
 from picongpu.picmi.diagnostics.particle_functor import ParticleFunctor
 from sympy import Piecewise
+from scipy.constants import c, epsilon_0
+from sympy.vector import CoordSys3D, cross
 
 from .arbitrary_parameters import (
     CELL_SIZE,
@@ -40,7 +42,7 @@ from .compare_particles import (
     read_particles,
     sort_particles,
 )
-from .distributions import Gaussian, SphereFlanks
+from .distributions import Gaussian, SphereFlanks, _make_vector
 
 logging.basicConfig(level=logging.INFO)
 
@@ -88,7 +90,20 @@ CUTOFF_ENERGY = 10.0
 
 
 def larmor_power(particle):
-    raise NotImplementedError()
+    charge = particle.get("charge")
+    mass = particle.get("mass")
+    gamma = particle.get("gamma")
+    dt = particle.get("timestep_size")
+
+    e = CoordSys3D("default")
+    momentum = _make_vector(particle.get("momentum"), e)
+    previous_momentum = _make_vector(particle.get("momentumPrev1"), e)
+
+    mom_dt = (momentum - previous_momentum) / dt
+    el_factor = charge**2 / (6 * np.pi * epsilon_0 * c**2 * mass**2)
+    momentumToBetaConvert = 1 / (mass * c * gamma)
+
+    return el_factor * (mom_dt.magnitude() ** 2 - momentumToBetaConvert**2 * cross(momentum, mom_dt).magnitude() ** 2)
 
 
 def generate_diagnostics(species):

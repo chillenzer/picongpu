@@ -38,6 +38,7 @@ ACCESSORS = {
     "charge_state": "picongpu::traits::attribute::getChargeState(particle)",
     "damped_weighting": "picongpu::traits::attribute::getDampedWeighting(particle)",
     "timestep": "domainInfo.currentStep",
+    "timestep_size": "sim.pic.getDt()",
 }
 
 
