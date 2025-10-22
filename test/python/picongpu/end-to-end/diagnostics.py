@@ -111,9 +111,11 @@ def generate_diagnostics(species):
     particles = [ParticleDump(species=s) for s in species] + [ParticleDump(species=species[0], options=options)]
     native_fields = [FieldDump(fieldname=fieldname) for fieldname in ["E", "B"]]
     functors = [
+        # Currently no eligible particles available:
         # ParticleFunctor(
         #     name="bound_electrons", functor=lambda particle: particle.get("boundElectrons"), return_type=float
         # ),
+        # Somehow off by some factor:
         # ParticleFunctor(
         #     name="charge_density",
         #     functor=lambda particle: particle.get("charge") / np.prod(CELL_SIZE),
@@ -142,8 +144,10 @@ def generate_diagnostics(species):
             ),
             return_type=float,
         ),
+        # Currently no eligible particles available:
         # ParticleFunctor(name="larmor_power", functor=larmor_power, return_type=float),
         ParticleFunctor(name="macroparticle_counter", functor=lambda _: 1, return_type=int),
+        # Somehow off by some factor:
         # ParticleFunctor(
         #     name="mid_current_density_x",
         #     functor=lambda particle: particle.get("charge")
@@ -152,6 +156,8 @@ def generate_diagnostics(species):
         #     / (particle.get("gamma") * particle.get("mass")),
         #     return_type=int,
         # ),
+        ParticleFunctor(name="momentum_y", functor=lambda particle: particle.get("momentum")[1], return_type=float),
+        # Duplicated just to test what happens:
         ParticleFunctor(name="momentum_y", functor=lambda particle: particle.get("momentum")[1], return_type=float),
         ParticleFunctor(
             name="momentum_density_z",
