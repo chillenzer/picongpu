@@ -8,7 +8,8 @@ License: GPLv3+
 from typing import Any, Callable, Iterable
 
 import pandas as pd
-from sympy import Expr, symbols, Symbol, lambdify
+from sympy import Expr, sqrt, symbols, Symbol, lambdify
+from scipy.constants import c
 from typeguard import typechecked
 
 from ...pypicongpu.output.binning import (
@@ -93,8 +94,28 @@ def attribute_lookup_information(attribute, **kwargs):
     if attribute == "momentum":
         return (
             symbols(["momentum_x", "momentum_y", "momentum_z"]),
-            [Symbol("momentum"), Symbol("momentum_y"), Symbol("momentum_z")],
+            [Symbol("momentum_x"), Symbol("momentum_y"), Symbol("momentum_z")],
         )
+    if attribute == "gamma":
+        return (
+            symbols(["mass", "momentum_x", "momentum_y", "momentum_z"]),
+            sqrt(
+                1
+                + (Symbol("momentum_x") ** 2 + Symbol("momentum_y") ** 2 + Symbol("momentum_z") ** 2)
+                / (Symbol("mass") ** 2 * c**2)
+            ),
+        )
+    if attribute == "velocity":
+        return (
+            symbols(["mass", "momentum_x", "momentum_y", "momentum_z"]),
+            [
+                Symbol("momentum_x") / Symbol("mass"),
+                Symbol("momentum_y") / Symbol("mass"),
+                Symbol("momentum_z") / Symbol("mass"),
+            ],
+        )
+    if attribute == "charge":
+        return (symbols(["charge", "weighting"]), Symbol("charge") * Symbol("weighting"))
 
     return [Symbol(attribute)], Symbol(attribute)
 

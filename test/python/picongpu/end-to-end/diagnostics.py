@@ -27,8 +27,10 @@ from picongpu.picmi.diagnostics import (
     TimeStepSpec,
 )
 from picongpu.picmi.diagnostics.particle_functor import ParticleFunctor
+from sympy import Piecewise
 
 from .arbitrary_parameters import (
+    CELL_SIZE,
     NUMBER_OF_CELLS,
     UPPER_BOUNDARY,
 )
@@ -82,15 +84,70 @@ def basic_simulation():
     )
 
 
+CUTOFF_ENERGY = 10.0
+
+
+def larmor_power(particle):
+    raise NotImplementedError()
+
+
 def generate_diagnostics(species):
     options = OpenPMDConfig(file="other_name", ext=".h5", infix="", data_preparation_strategy="doubleBuffer")
     particles = [ParticleDump(species=s) for s in species] + [ParticleDump(species=species[0], options=options)]
     native_fields = [FieldDump(fieldname=fieldname) for fieldname in ["E", "B"]]
     functors = [
-        ParticleFunctor(name="macroParticleCounter", functor=lambda _: 1, return_type=int),
-        ParticleFunctor(name="particleCounter", functor=lambda particle: particle.get("weighting"), return_type=float),
-        ParticleFunctor(name="TestFunctor", functor=lambda particle: particle.get("kinetic energy"), return_type=float),
-        ParticleFunctor(name="momentum_y", functor=lambda particle: particle.get("momentum")[1], return_type=int),
+        # ParticleFunctor(
+        #     name="bound_electrons", functor=lambda particle: particle.get("boundElectrons"), return_type=float
+        # ),
+        # ParticleFunctor(
+        #     name="charge_density",
+        #     functor=lambda particle: particle.get("charge") / np.prod(CELL_SIZE),
+        #     return_type=float,
+        # ),
+        ParticleFunctor(name="particle_counter", functor=lambda particle: particle.get("weighting"), return_type=float),
+        ParticleFunctor(
+            name="density", functor=lambda particle: particle.get("weighting") / np.prod(CELL_SIZE), return_type=float
+        ),
+        ParticleFunctor(
+            name="kinetic_energy", functor=lambda particle: particle.get("kinetic energy"), return_type=float
+        ),
+        ParticleFunctor(
+            name="kinetic_energy_density",
+            functor=lambda particle: particle.get("kinetic energy") / np.prod(CELL_SIZE),
+            return_type=float,
+        ),
+        ParticleFunctor(
+            name="kinetic_energy_density_cutoff",
+            functor=lambda particle: Piecewise(
+                (
+                    particle.get("kinetic energy") / np.prod(CELL_SIZE),
+                    particle.get("kinetic energy") < CUTOFF_ENERGY * particle.get("weighting"),
+                ),
+                (0.0, True),
+            ),
+            return_type=float,
+        ),
+        # ParticleFunctor(name="larmor_power", functor=larmor_power, return_type=float),
+        ParticleFunctor(name="macroparticle_counter", functor=lambda _: 1, return_type=int),
+        # ParticleFunctor(
+        #     name="mid_current_density_x",
+        #     functor=lambda particle: particle.get("charge")
+        #     / np.prod(CELL_SIZE)
+        #     * particle.get("momentum")[0]
+        #     / (particle.get("gamma") * particle.get("mass")),
+        #     return_type=int,
+        # ),
+        ParticleFunctor(name="momentum_y", functor=lambda particle: particle.get("momentum")[1], return_type=float),
+        ParticleFunctor(
+            name="momentum_density_z",
+            functor=lambda particle: particle.get("momentum")[2] / np.prod(CELL_SIZE),
+            return_type=float,
+        ),
+        ParticleFunctor(
+            name="weighted_velocity_x",
+            functor=lambda particle: particle.get("velocity")[0] * particle.get("weighting"),
+            return_type=float,
+        ),
     ]
     derived_fields = [DerivedFieldDump(species=s, functor=f) for s in species for f in functors]
     return particles + native_fields + derived_fields
