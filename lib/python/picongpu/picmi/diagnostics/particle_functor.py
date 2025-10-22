@@ -90,6 +90,12 @@ def attribute_lookup_information(attribute, **kwargs):
             symbols(["mass", "momentum_x", "momentum_y", "momentum_z"]),
             (Symbol("momentum_x") ** 2 + Symbol("momentum_y") ** 2 + Symbol("momentum_z") ** 2) / (2 * Symbol("mass")),
         )
+    if attribute == "momentum":
+        return (
+            symbols(["momentum_x", "momentum_y", "momentum_z"]),
+            [Symbol("momentum"), Symbol("momentum_y"), Symbol("momentum_z")],
+        )
+
     return [Symbol(attribute)], Symbol(attribute)
 
 

@@ -29,7 +29,6 @@ from picongpu.picmi.diagnostics import (
 from picongpu.picmi.diagnostics.particle_functor import ParticleFunctor
 
 from .arbitrary_parameters import (
-    MACRO_PARTICLES_PER_CELL,
     NUMBER_OF_CELLS,
     UPPER_BOUNDARY,
 )
@@ -53,6 +52,7 @@ SPECIES = [
     Species(
         name="Gaussian_predefined",
         particle_type="electron",
+        particle_shape=PARTICLE_SHAPE,
         initial_distribution=Gaussian().distributions["predefined"],
     ),
     Species(
@@ -87,15 +87,16 @@ def generate_diagnostics(species):
     particles = [ParticleDump(species=s) for s in species] + [ParticleDump(species=species[0], options=options)]
     native_fields = [FieldDump(fieldname=fieldname) for fieldname in ["E", "B"]]
     functors = [
-        ParticleFunctor(name="macroParticleCounter", functor=lambda particle: 1, return_type=int),
+        ParticleFunctor(name="macroParticleCounter", functor=lambda _: 1, return_type=int),
         ParticleFunctor(name="particleCounter", functor=lambda particle: particle.get("weighting"), return_type=float),
         ParticleFunctor(name="TestFunctor", functor=lambda particle: particle.get("kinetic energy"), return_type=float),
+        ParticleFunctor(name="momentum_y", functor=lambda particle: particle.get("momentum")[1], return_type=int),
     ]
     derived_fields = [DerivedFieldDump(species=s, functor=f) for s in species for f in functors]
     return particles + native_fields + derived_fields
 
 
-RUN_DIR = "/tmp/pypicongpu-2025-10-21-13-20-55-run-mob7hxoi"
+RUN_DIR = ""
 
 
 def setup_sim():
@@ -111,14 +112,6 @@ def setup_sim():
 
 
 SIM = None
-
-DERIVED_FIELD_CONVERSIONS_FROM_COUNTER = {
-    "MacroCounter": lambda counter: (counter > 0) * MACRO_PARTICLES_PER_CELL,
-    # "Energy": lambda counter: np.zeros_like(counter),
-    # Looks like it works up to a pre-factor
-    # but getting the details right turned out to be non-trivial:
-    # 'Density': lambda counter: counter,
-}
 
 
 class TestDiagnostics(TestCase):
@@ -162,11 +155,9 @@ class TestDiagnostics(TestCase):
                 my_particles = particles.loc(axis=0)[*diag.species.name.split("_", maxsplit=1)]
                 expected = diag(self.sim.solver.grid, my_particles)
                 result = load_diagnostic_result(diag, self.result_path).transpose((2, 1, 0))
-                expected = expected / np.nanmax(expected)
-                result = result / np.nanmax(result)
+                # The openPMD data apparently has NaNs where there wasn't a particle at all.
+                result[np.isnan(result)] = 0.0
                 np.testing.assert_allclose(result, expected, rtol=1.0e-5, atol=1.0e-5)
-                # Haven't got the factors right, yet!
-                self.assertTrue(False)
 
 
 if __name__ == "__main__":

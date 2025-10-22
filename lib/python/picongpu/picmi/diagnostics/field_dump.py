@@ -9,6 +9,8 @@ from os import PathLike
 from pathlib import Path
 from typing import Literal
 
+from picongpu.picmi.species import Shape
+
 import numpy as np
 from pydantic import BaseModel
 
@@ -62,6 +64,10 @@ class DerivedFieldDump(FieldDump):
         return self._distribute_to_grid(grid, self.functor(particle))
 
     def _distribute_to_grid(self, grid, particles):
+        if Shape[self.species.particle_shape.upper()] != Shape.COUNTER:
+            raise NotImplementedError(
+                f"Currently only naive distribution to cells is supported. Your species has {self.species.particle_shape=}. Only COUNTER is allowed."
+            )
         data = (
             particles.set_index(
                 ["position_x", "position_y", "position_z", "positionOffset_x", "positionOffset_y", "positionOffset_z"]

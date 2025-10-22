@@ -67,7 +67,7 @@ namespace picongpu
     };
 
     template<>
-    struct IsWeighted<TestFunctor> : std::true_type {};
+    struct IsWeighted<{{{name}}}> : std::true_type {};
 {{/predefined}}
 {{/data.derived_fields}}
 {{/typeID.openPMD}}
