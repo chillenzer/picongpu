@@ -272,10 +272,19 @@ class TestDiagnostics(TestCase):
     def test_call_operator_binning(self):
         particles = read_particles(self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5")
         for binning in generate_derived_field_dumps_as_binnings(SPECIES, FUNCTORS):
-            np.testing.assert_allclose(
-                binning(particles.loc(axis=0)[*binning.species[0].name.split("_", maxsplit=1)]),
-                load_diagnostic_result(binning, self.result_path).transpose(2, 1, 0),
-            )
+            from_call = binning(particles.loc(axis=0)[*binning.species[0].name.split("_", maxsplit=1)])
+            from_disk = load_diagnostic_result(binning, self.result_path).transpose(2, 1, 0)
+            try:
+                np.testing.assert_allclose(from_disk, from_call)
+            except:
+                from .debug import visualise, plot_some
+
+                plot_some(
+                    [from_call, from_call * 2, np.roll(from_call, 1, 1) * 2, from_disk],
+                    name="call, scaled call, shifted-and-scaled call, disk",
+                )
+                visualise(from_disk, from_call)
+                raise
 
 
 if __name__ == "__main__":

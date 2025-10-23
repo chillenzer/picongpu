@@ -33,10 +33,9 @@ class BinSpec:
     def get_as_pypicongpu(self):
         return PyPIConGPUBinSpec(self.kind.lower().capitalize(), self.start, self.stop, self.nsteps)
 
-    @property
-    def bins(self):
+    def bins(self, return_type=None):
         if self.kind.lower() == "linear":
-            return np.linspace(self.start, self.stop, self.nsteps + 1, endpoint=True)
+            return np.linspace(self.start, self.stop, self.nsteps + 1, endpoint=True, dtype=return_type or float)
         raise NotImplementedError("Computing bins for other than linear BinSpecs is not implemented.")
 
 
@@ -63,7 +62,12 @@ class BinningAxis:
         )
 
     def __call__(self, particle):
-        return np.digitize(self.functor(particle)[self.functor.name].to_numpy(), self.bin_spec.bins)
+        return (
+            np.digitize(
+                self.functor(particle)[self.functor.name].to_numpy(), self.bin_spec.bins(self.functor.return_type)
+            )
+            - 1
+        )
 
 
 @typeguard.typechecked

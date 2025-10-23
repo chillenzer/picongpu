@@ -7,9 +7,10 @@ License: GPLv3+
 
 from typing import Any, Callable, Iterable
 
+import numpy as np
 import pandas as pd
-from sympy import Expr, sqrt, symbols, Symbol, lambdify
 from scipy.constants import c
+from sympy import Expr, Symbol, lambdify, sqrt, symbols
 from typeguard import typechecked
 
 from ...pypicongpu.output.binning import (
@@ -85,7 +86,7 @@ class AbstractParticle(Particle):
 
         return my_symbols
 
-    def finalize(self, expression, name=None):
+    def finalize(self, expression, name=None, return_type=None):
         return expression
 
 
@@ -160,10 +161,11 @@ class ParticleFromDataFrame(Particle):
         self.symbols |= set(my_symbols)
         return expression
 
-    def finalize(self, expression, name=None):
+    def finalize(self, expression, name=None, return_type=None):
         name = name or "result"
         result = lambdify(list(self.symbols), expression, "numpy")(*self.df[list(map(str, self.symbols))].T.to_numpy())
-        return self.df.assign(**{name: result})
+        result_type = return_type if isinstance(return_type, type) else float
+        return self.df.assign(**{name: np.asarray(result, dtype=result_type)})
 
 
 def make_particle(particle_like):
@@ -200,4 +202,4 @@ class ParticleFunctor:
 
     def __call__(self, particle):
         expression = self.functor(particle)
-        return particle.finalize(expression, self.name)
+        return particle.finalize(expression, self.name, self.return_type)
