@@ -126,6 +126,25 @@ def attribute_lookup_information(attribute, **kwargs):
     if attribute == "charge":
         return (symbols(["charge", "weighting"]), Symbol("charge") * Symbol("weighting"))
 
+    if attribute == "position":
+        origin = kwargs.get("origin", "total")
+        precision = kwargs.get("precision", "sub_cell")
+        unit = kwargs.get("unit", "si")
+
+        if origin != "total" or precision != "sub_cell" or unit != "si":
+            raise NotImplementedError()
+
+        return (
+            symbols(
+                ["position_x", "position_y", "position_z", "positionOffset_x", "positionOffset_y", "positionOffset_z"]
+            ),
+            [
+                Symbol("position_x") + Symbol("positionOffset_x"),
+                Symbol("position_y") + Symbol("positionOffset_y"),
+                Symbol("position_z") + Symbol("positionOffset_z"),
+            ],
+        )
+
     return [Symbol(attribute)], Symbol(attribute)
 
 

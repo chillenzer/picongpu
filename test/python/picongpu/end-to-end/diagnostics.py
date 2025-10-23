@@ -6,9 +6,9 @@ License: GPLv3+
 """
 
 import logging
+from functools import partial
 from pathlib import Path
 from unittest import TestCase, main
-
 
 import numpy as np
 from picongpu.picmi import (
@@ -20,6 +20,8 @@ from picongpu.picmi import (
 )
 from picongpu.picmi.diagnostics import (
     Binning,
+    BinningAxis,
+    BinSpec,
     Checkpoint,
     DerivedFieldDump,
     FieldDump,
@@ -28,8 +30,8 @@ from picongpu.picmi.diagnostics import (
     TimeStepSpec,
 )
 from picongpu.picmi.diagnostics.particle_functor import ParticleFunctor
-from sympy import Piecewise
 from scipy.constants import c, epsilon_0
+from sympy import Piecewise
 from sympy.vector import CoordSys3D, cross
 
 from .arbitrary_parameters import (
@@ -44,7 +46,27 @@ from .compare_particles import (
     sort_particles,
 )
 from .distributions import Gaussian, SphereFlanks, _make_vector
-from .binning_functors import POSITION_AXES
+
+
+def position(particle, i):
+    return particle.get("position", origin="total", precision="sub_cell", unit="si")[i] // CELL_SIZE[i]
+
+
+POSITION_AXES = [
+    BinningAxis(
+        ParticleFunctor(
+            # We prefer `partial` over lambda functions in this situation
+            # because of lambda's late binding.
+            name=f"position{i}",
+            functor=partial(position, i=i),
+            return_type=int,
+        ),
+        BinSpec("linear", 0, NUMBER_OF_CELLS[i], NUMBER_OF_CELLS[i]),
+        use_overflow_bins=False,
+    )
+    for i in range(3)
+]
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -245,6 +267,14 @@ class TestDiagnostics(TestCase):
         ):
             np.testing.assert_allclose(
                 load_diagnostic_result(dump, self.result_path), load_diagnostic_result(binning, self.result_path)
+            )
+
+    def test_call_operator_binning(self):
+        particles = read_particles(self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5")
+        for binning in generate_derived_field_dumps_as_binnings(SPECIES, FUNCTORS):
+            np.testing.assert_allclose(
+                binning(particles.loc(axis=0)[*binning.species[0].name.split("_", maxsplit=1)]),
+                load_diagnostic_result(binning, self.result_path).transpose(2, 1, 0),
             )
 
 

@@ -122,8 +122,8 @@ class Binning:
     def __call__(self, particle):
         if not isinstance(particle, Particle):
             return self(make_particle(particle))
+
+        index = [axis(particle) for axis in self.axes]
         result = np.zeros([a.bin_spec.nsteps for a in self.axes])
-        result[np.transpose([axis(particle) for axis in self.axes])] += self.deposition_functor(particle)[
-            self.deposition_functor.name
-        ]
+        result[*index] += self.deposition_functor(particle)[self.deposition_functor.name]
         return result
