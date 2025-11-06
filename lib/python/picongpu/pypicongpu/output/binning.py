@@ -188,6 +188,7 @@ class Binning(Plugin):
                         working_directory=result_directory,
                         sub_directory="binningOpenPMD",
                     ),
+                    "meshes": ["Binning"],
                 }
             }
         }

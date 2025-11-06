@@ -8,7 +8,7 @@ License: GPLv3+
 import logging
 from enum import Enum
 from functools import reduce
-from random import sample
+from random import sample, choices
 from typing import Any, Callable, Iterable
 
 try:
@@ -147,7 +147,8 @@ def _extract_id(obj):
 
 class Ordering(Enum):
     arbitrary = "arbitrary"
-    random = "random"
+    random_with_replacement = "random_with_replacement"
+    random_without_replacement = "random_without_replacement"
 
 
 def _apply_ordering(objs, ordering: Ordering | Callable[[dict[str, Any]], float]):
@@ -159,10 +160,13 @@ def _apply_ordering(objs, ordering: Ordering | Callable[[dict[str, Any]], float]
 
     if ordering == Ordering.arbitrary:
         return objs
-    if ordering == Ordering.random:
-        # for random access we actually have to hold a copy in memory
-        objs = list(objs)
+    # for random access we actually have to hold a copy in memory
+    # for printing the error message afterwards it's also more readable
+    objs = list(objs)
+    if ordering == Ordering.random_without_replacement:
         return iter(sample(objs, k=len(objs)))
+    if ordering == Ordering.random_with_replacement:
+        return iter(choices(objs, k=len(objs)))
     raise ValueError(f"Applying the {ordering=} to {objs=} reached an unreachable branch.")
 
 
@@ -188,14 +192,30 @@ class Retrievable(Enum):
     parameters = "parameters"
 
 
+class ExtractionFailure:
+    pass
+
+
+class NotFound(ExtractionFailure):
+    pass
+
+
+def _extract_from(obj, name):
+    split_name = name.split("/", maxsplit=1)
+    try:
+        if len(split_name) == 2:
+            return _extract_from(obj[split_name[0]], split_name[1])
+        return obj[split_name[0]]
+    except KeyError:
+        return NotFound()
+
+
 class Parameter:
     def __init__(self, name):
         self.name = name
 
     def extract_from(self, obj):
-        for key in self.name.split("/"):
-            obj = obj[key]
-        return obj
+        return _extract_from(obj, self.name)
 
 
 class Result:
@@ -203,10 +223,7 @@ class Result:
         self.name = name
 
     def extract_from(self, obj: RuntimeInfo):
-        obj = obj.expected_results
-        for key in self.name.split("/"):
-            obj = obj[key]
-        return obj
+        return _extract_from(obj.expected_results, self.name)
 
 
 def is_iterable(obj):
@@ -250,6 +267,52 @@ def _filter_by_ids(objs, ids):
     return filter(lambda obj: _extract_id(obj) in ids, objs)
 
 
+class ExtractionFailureException(Exception):
+    pass
+
+
+def _raise_exception(*args):
+    raise ExtractionFailureException(*args) from args[0]
+
+
+class ToBeRemoved:
+    pass
+
+
+def _remove_if_any(*args):
+    return ToBeRemoved()
+
+
+class HandleExtractionFailures(Enum):
+    raise_exception = _raise_exception
+    remove_if_any = _remove_if_any
+
+
+def _contains_extraction_failure(obj):
+    if isinstance(obj, ExtractionFailure):
+        return obj, "", obj
+    if isinstance(obj, dict):
+        try:
+            key, (failure, path, _) = next(
+                filter(lambda x: x[1], ((key, _contains_extraction_failure(value)) for key, value in obj.items()))
+            )
+            return failure, f"{key}/{path}", obj
+        except StopIteration:
+            return False
+    if isinstance(obj, list):
+        return _contains_extraction_failure({key: val for key, val in enumerate(obj)})
+    return False
+
+
+def _handle_extraction_failures(objs, handler):
+    if isinstance(handler, HandleExtractionFailures):
+        handler = handler.value
+    return filter(
+        lambda o: not isinstance(o, ToBeRemoved),
+        map(lambda o: handler(*not_found) if (not_found := _contains_extraction_failure(o)) else o, objs),
+    )
+
+
 def _get_full_metadata(
     database,
     ids: Iterable[str] | None = None,
@@ -263,9 +326,19 @@ def _get_full_metadata(
     )
 
 
-def _get_batched_information(database, information, batch_size: int | None = None, **kwargs):
+def _get_batched_information(
+    database,
+    information,
+    batch_size: int | None = None,
+    handle_extraction_failures: HandleExtractionFailures
+    | Callable[[ExtractionFailure, str, dict[str, Any]], Any] = HandleExtractionFailures.remove_if_any,
+    **kwargs,
+):
     return _apply_batch_size(
-        map(information, _get_full_metadata(database, **kwargs)),
+        _handle_extraction_failures(
+            map(information, _get_full_metadata(database, **kwargs)),
+            handle_extraction_failures,
+        ),
         batch_size,
     )
 
