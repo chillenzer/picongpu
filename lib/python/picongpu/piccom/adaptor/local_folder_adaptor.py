@@ -8,40 +8,49 @@ License: GPLv3+
 import logging
 from enum import Enum
 from functools import reduce
-from random import sample, choices
+from random import choices, sample
 from typing import Any, Callable, Iterable
-
-try:
-    from itertools import batched
-except ImportError:
-    # This was only added in 3.12
-    class batched:
-        def __init__(self, iterable, batch_size):
-            self.batch_size = batch_size
-            self.iterable = iter(iterable)
-            self.exhausted = False
-
-        def __next__(self):
-            if self.exhausted:
-                raise StopIteration()
-
-            def gen():
-                for _ in range(self.batch_size):
-                    try:
-                        yield next(self.iterable)
-                    except StopIteration:
-                        self.exhausted = True
-
-            return gen()
-
-        def __iter__(self):
-            return self
-
 
 import numpy as np
 
 from picongpu.piccom.schema.info import RuntimeInfo
 from picongpu.piccom.schema.metadata_file import MetadataFile
+
+
+# One would think that
+#     from itertools import batched
+# could be a better idea but it returns the batches as tuples
+# which might not be what we want concerning the laziness
+# and memory consumption of the algorithm.
+class batched:
+    def __init__(self, iterable, batch_size):
+        self.batch_size = batch_size
+        self.iterable = iter(iterable)
+        self.exhausted = False
+        self.previous_gen_exhausted = True
+
+    def __next__(self):
+        if not self.previous_gen_exhausted:
+            raise ValueError(
+                "The protocol for our purely iterator-based `batched` algorithm requires that you first exhaust the previous batch."
+            )
+        if self.exhausted:
+            raise StopIteration()
+
+        def gen(instance):
+            for _ in range(instance.batch_size):
+                try:
+                    yield next(instance.iterable)
+                except StopIteration:
+                    instance.exhausted = True
+                    break
+            instance.previous_gen_exhausted = True
+
+        self.previous_gen_exhausted = False
+        return gen(self)
+
+    def __iter__(self):
+        return self
 
 
 class Status(Enum):
