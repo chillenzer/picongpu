@@ -39,6 +39,7 @@ class Checkpoint(Plugin, BaseModel):
                     working_directory=result_directory,
                     sub_directory=Path(self.directory or "checkpoints"),
                 ),
+                "meshes": ["E", "B"],
             }
         }
 
