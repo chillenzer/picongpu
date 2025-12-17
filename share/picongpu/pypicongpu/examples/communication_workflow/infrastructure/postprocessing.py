@@ -110,14 +110,30 @@ def plot_electron_spectrum(communicator):
         [
             ["additional_parameters/width", "laser/0/data/pulse_duration_si"],
             Result("binning/electron_spectrum/path"),
+            # This is just a demonstration of globbing:
             [
+                # all of these result in the same output:
+                # 1. query returns a single value but it is manually wrapped in a list
+                ["laser/0/data/pulse_duration_si"],
+                # 2. returns a list of specified values in any element of `laser/`
+                # (there happens to be only one laser in this list)
                 "laser/{}/data/pulse_duration_si",
-                "laser/{typeID/gaussian=False;typeID/planewave=True}/data/pulse_duration_si",
+                # 3. returns a list of all lasers that
+                #     - match typeID/planewave=True
+                #     - have a field data/wavelength_si
+                # (again happens to be exactly one)
+                "laser/{typeID/planewave=True;data/wave_length_si}/data/pulse_duration_si",
+                # 4. returns a list of values from any "leaf" of the tree named "pulse_duration_si"
+                # (only lasers have such a leaf and there's only one laser)
+                "{...}/pulse_duration_si",
             ],
-            "{...}/pulse_duration_si",
         ],
         status={"run": "success"},
     )
+
+    r2 = [r[2] for r in results]
+    assert all(all(x == y for x in r for y in r) for r in r2)
+
     widths = sorted(set(map(lambda r: r[0][0], results)))
     durations = sorted(set(map(lambda r: r[0][1], results)))
     fig, axes = setup_plots(widths, durations)
@@ -127,7 +143,7 @@ def plot_electron_spectrum(communicator):
             axes[widths.index(width), durations.index(duration)],
             _extract_spectrum(Series(path, Access_Type.read_only)),
         )
-        for (width, duration), path, _, __ in results
+        for (width, duration), path, _ in results
     ]
 
     norm = construct_norm(results)
