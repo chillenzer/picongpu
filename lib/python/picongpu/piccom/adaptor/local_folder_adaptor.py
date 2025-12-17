@@ -255,8 +255,9 @@ def _wildcard_extract_from(obj, name):
 
     if wc == "...":
         return _indefinite_wildcard_extract_from(obj, remainder)
+    wc = [w for w in wc.split(";") if w != ""]
 
-    return [extractor(o, remainder) for o in obj if _matches_wildcard(o, wc)]
+    return [extractor(o, remainder) for o in obj if all(_matches_wildcard(o, w) for w in wc)]
 
 
 def _extract_from(obj, name):

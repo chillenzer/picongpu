@@ -110,7 +110,10 @@ def plot_electron_spectrum(communicator):
         [
             ["additional_parameters/width", "laser/0/data/pulse_duration_si"],
             Result("binning/electron_spectrum/path"),
-            ["laser/{}/data/pulse_duration_si", "laser/{typeID/gaussian=False}/data/pulse_duration_si"],
+            [
+                "laser/{}/data/pulse_duration_si",
+                "laser/{typeID/gaussian=False;typeID/planewave=True}/data/pulse_duration_si",
+            ],
             "{...}/pulse_duration_si",
         ],
         status={"run": "success"},
