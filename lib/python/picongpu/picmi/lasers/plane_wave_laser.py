@@ -16,7 +16,7 @@ from .base_laser import BaseLaser
 from .polarization_type import PolarizationType
 
 
-@default_converts_to(laser.PlaneWaveLaser)
+@default_converts_to(laser.PlaneWaveLaser, conversions={"laser_nofocus_constant_si": "picongpu_plateau_duration"})
 @typeguard.typechecked
 class PlaneWaveLaser(BaseLaser):
     """
