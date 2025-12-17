@@ -6,6 +6,7 @@ License: GPLv3+
 """
 
 import logging
+from ast import literal_eval
 from enum import Enum
 from functools import reduce
 from random import choices, sample
@@ -209,7 +210,61 @@ class NotFound(ExtractionFailure):
     pass
 
 
+def _matches_wildcard(obj, wildcard):
+    if wildcard == "":
+        return True
+    split_wc = wildcard.split("=", maxsplit=1)
+    if len(split_wc) == 2:
+        value = _extract_from(obj, split_wc[0])
+        try:
+            return value == literal_eval(split_wc[1])
+        except ValueError:
+            return False
+    return not isinstance(_extract_from(obj, split_wc[0]), NotFound)
+
+
+def _indefinite_wildcard_extract_from(obj, name):
+    if isinstance(obj, dict):
+        if _matches_wildcard(obj, name):
+            return [_extract_from(obj, name)]
+        obj = list(obj.values())
+
+    if isinstance(obj, list):
+        try:
+            return sum(
+                (
+                    result
+                    for o in obj
+                    if not isinstance((result := _indefinite_wildcard_extract_from(o, name)), NotFound)
+                ),
+                [],
+            )
+        except TypeError:
+            return NotFound()
+    return NotFound()
+
+
+def _wildcard_extract_from(obj, name):
+    try:
+        wc, remainder = name[1:].split("}")
+    except ValueError as error:
+        raise ValueError(f"{name=} starts with '{{' but does not contain matching '}}'.") from error
+
+    extractor = (lambda x, _: x) if remainder == "" else _extract_from
+    remainder = remainder[1:]
+
+    if wc == "...":
+        return _indefinite_wildcard_extract_from(obj, remainder)
+
+    return [extractor(o, remainder) for o in obj if _matches_wildcard(o, wc)]
+
+
 def _extract_from(obj, name):
+    if name.startswith("{"):
+        if "}" in name:
+            return _wildcard_extract_from(obj, name)
+        else:
+            raise ValueError(f"Found '{{' without corresponding closing bracket '}}' in {name=}.")
     split_name = name.split("/", maxsplit=1)
     if isinstance(obj, list):
         split_name[0] = int(split_name[0])

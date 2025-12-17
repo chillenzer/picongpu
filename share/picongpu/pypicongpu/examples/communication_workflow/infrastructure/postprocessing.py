@@ -110,6 +110,8 @@ def plot_electron_spectrum(communicator):
         [
             ["additional_parameters/width", "laser/0/data/pulse_duration_si"],
             Result("binning/electron_spectrum/path"),
+            ["laser/{}/data/pulse_duration_si", "laser/{typeID/gaussian=False}/data/pulse_duration_si"],
+            "{...}/pulse_duration_si",
         ],
         status={"run": "success"},
     )
@@ -122,7 +124,7 @@ def plot_electron_spectrum(communicator):
             axes[widths.index(width), durations.index(duration)],
             _extract_spectrum(Series(path, Access_Type.read_only)),
         )
-        for (width, duration), path in results
+        for (width, duration), path, _, __ in results
     ]
 
     norm = construct_norm(results)
