@@ -211,6 +211,8 @@ class NotFound(ExtractionFailure):
 
 def _extract_from(obj, name):
     split_name = name.split("/", maxsplit=1)
+    if isinstance(obj, list):
+        split_name[0] = int(split_name[0])
     try:
         if len(split_name) == 2:
             return _extract_from(obj[split_name[0]], split_name[1])

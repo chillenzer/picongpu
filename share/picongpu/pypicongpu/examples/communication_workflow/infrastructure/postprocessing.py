@@ -108,7 +108,7 @@ def construct_norm(results):
 def plot_electron_spectrum(communicator):
     results = LocalFolderAdaptor(communicator).get(
         [
-            ["additional_parameters/width", "laser/data/pulse_duration_si"],
+            ["additional_parameters/width", "laser/0/data/pulse_duration_si"],
             Result("binning/electron_spectrum/path"),
         ],
         status={"run": "success"},
