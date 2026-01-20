@@ -44,14 +44,29 @@ BINNING_ACCESSORS = COMMON_ACCESSORS | {
     for unit in ("CELL", "PIC", "SI")
 }
 
+_ORIGINS = [
+    ("local", f"static_cast<float3_X>({by_bracket('localCellIdx')}"),
+    ("cell", f"static_cast<float3_X>({by_bracket('position')}"),
+    ("total", "static_cast<float3_X>(particleOffsetToTotalOrigin)"),
+]
+_PRECISIONS = [("cell", ""), ("sub_cell", " + " + by_bracket("position"))]
+_UNITS = [("cell", ""), ("si", "* sim.si.getCellSize()"), ("pic", "* sim.pic.getCellSize()")]
 
 DERIVED_FIELD_ACCESSORS = COMMON_ACCESSORS | {
-    ("position", "local", "cell", "cell"): by_bracket("localCellIdx"),
-    ("position", "cell", "sub_cell", "cell"): by_bracket("position"),
+    ("position", origin, precision, unit): f"({o_expr}{p_expr}){u_expr}"
+    for origin, o_expr in _ORIGINS
+    if origin != "total"
+    for precision, p_expr in _PRECISIONS
+    for unit, u_expr in _UNITS
 }
 
-# Not yet suppoerting FreeTotalCellOffset filters:
-FILTER_ACCESSORS = DERIVED_FIELD_ACCESSORS
+FILTER_ACCESSORS = DERIVED_FIELD_ACCESSORS | {
+    ("position", origin, precision, unit): f"({o_expr}{p_expr}){u_expr}"
+    for origin, o_expr in _ORIGINS
+    if origin == "total"
+    for precision, p_expr in _PRECISIONS
+    for unit, u_expr in _UNITS
+}
 
 ACCESSORS = {"Binning": BINNING_ACCESSORS, "DerivedField": DERIVED_FIELD_ACCESSORS, "Filter": FILTER_ACCESSORS}
 
@@ -61,16 +76,17 @@ def symbol_to_string(symbol):
 
 
 def generate_preamble(attribute_mapping, mode: Literal["Binning", "Filter", "DerivedField"]):
-    if mode in ["DerivedField", "Filter"]:
-        if unknown_position_requests := [
-            pos
-            for pos in attribute_mapping.values()
-            if isinstance(pos, tuple) and pos[0] == "position" and pos not in ACCESSORS[mode]
-        ]:
-            raise ValueError(
-                "You requested information about a particle position that PIConGPU can't provide for "
-                f"{mode=}. You gave: {unknown_position_requests=}."
-            )
+    # Positions are special in that not all functors have access to all kinds of positions.
+    # We only allow the ones we explicitly know how to access.
+    if unknown_position_requests := [
+        pos
+        for pos in attribute_mapping.values()
+        if isinstance(pos, tuple) and pos[0] == "position" and pos not in ACCESSORS[mode]
+    ]:
+        raise ValueError(
+            "You requested information about a particle position that PIConGPU can't provide for "
+            f"{mode=}. You gave: {unknown_position_requests=}."
+        )
 
     return [
         {
@@ -82,6 +98,7 @@ def generate_preamble(attribute_mapping, mode: Literal["Binning", "Filter", "Der
 
 def translate_to_cpp_type(return_type):
     try:
+        # Ordering is important here because issubclass(bool, int) is True in Python world
         if issubclass(return_type, bool):
             return "bool"
         if issubclass(return_type, numbers.Integral):

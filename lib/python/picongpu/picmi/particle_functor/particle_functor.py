@@ -59,7 +59,7 @@ class AbstractParticle(Particle):
             origin = kwargs.get("origin", "total")
             precision = kwargs.get("precision", "cell")
             unit = kwargs.get("unit", "cell")
-            self.needs_total_position += origin.lower() not in ["cell", "local"]
+            self.needs_total_position = self.needs_total_position or (origin.lower() not in ["cell", "local"])
             my_symbols = _COORDINATE_SYSTEM[(origin, precision, unit)]
             self.used_attributes |= {my_symbols: ("position", origin, precision, unit)}
 
@@ -99,9 +99,6 @@ class AbstractParticle(Particle):
 
 @typechecked
 class ParticleFunctor:
-    def check(self):
-        pass
-
     def __init__(
         self,
         name: str,
@@ -115,7 +112,6 @@ class ParticleFunctor:
         self.unit_dimension = unit_dimension or UnitDimension()
 
     def get_as_pypicongpu(self, mode) -> PyPIConGPUParticleFunctor:
-        self.check()
         particle = AbstractParticle()
         functor_expression = self(particle)
         return PyPIConGPUParticleFunctor(
