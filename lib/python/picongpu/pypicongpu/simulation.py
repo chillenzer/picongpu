@@ -8,9 +8,10 @@ License: GPLv3+
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import BaseModel, PlainSerializer, field_serializer
+from pydantic import BaseModel, Field, PlainSerializer, field_serializer
 
 from picongpu.pypicongpu.collisions import CollisionalPhysicsSetup
+from picongpu.pypicongpu.output.particle_functor import ParticleFunctor
 from picongpu.pypicongpu.species.constant.synchrotron import SynchrotronParams
 from picongpu.pypicongpu.species.operation.operation import Operation
 from picongpu.pypicongpu.species.species import Species
@@ -87,6 +88,7 @@ class Simulation(RenderedObject, BaseModel):
     init_operations: Annotated[list[Operation], PlainSerializer(_serialize)]
     synchrotron_params: SynchrotronParams = SynchrotronParams()
     collisional_physics: CollisionalPhysicsSetup = CollisionalPhysicsSetup()
+    particle_filters: list[ParticleFunctor] = Field(default_factory=list)
 
     @field_serializer("customuserinput")
     def _render_custom_user_input_list(self, value):
