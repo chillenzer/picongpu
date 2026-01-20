@@ -12,7 +12,7 @@ import numpy as np
 import sympy
 from picongpu import picmi, pypicongpu
 from picongpu.picmi.diagnostics import binning
-from picongpu.picmi.diagnostics.unit_dimension import I, L, M, T
+from picongpu.picmi.particle_functor.unit_dimension import I, L, M, T
 from scipy.constants import c, elementary_charge
 
 # set log level:
