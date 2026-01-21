@@ -5,13 +5,13 @@ Authors: Julian Lenz
 License: GPLv3+
 """
 
-from .phase_space import PhaseSpace
+from .checkpoint import Checkpoint
 from .energy_histogram import EnergyHistogram
 from .macro_particle_count import MacroParticleCount
-from .timestepspec import TimeStepSpec
-from .checkpoint import Checkpoint
 from .openpmd_plugin import OpenPMDPlugin
+from .phase_space import PhaseSpace
 from .plugin import Plugin
+from .timestepspec import TimeStepSpec
 
 __all__ = [
     "OpenPMDPlugin",

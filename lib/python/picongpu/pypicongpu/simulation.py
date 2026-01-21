@@ -11,7 +11,7 @@ from typing import Annotated
 from pydantic import BaseModel, Field, PlainSerializer, field_serializer
 
 from picongpu.pypicongpu.collisions import CollisionalPhysicsSetup
-from picongpu.pypicongpu.output.particle_functor import ParticleFunctor
+from picongpu.pypicongpu.particle_functor.particle_functor import ParticleFunctor
 from picongpu.pypicongpu.species.constant.synchrotron import SynchrotronParams
 from picongpu.pypicongpu.species.operation.operation import Operation
 from picongpu.pypicongpu.species.species import Species
