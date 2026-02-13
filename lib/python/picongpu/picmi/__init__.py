@@ -7,7 +7,7 @@ from .grid import Cartesian3DGrid
 from .solver import ElectromagneticSolver
 from .lasers import DispersivePulseLaser, GaussianLaser, PlaneWaveLaser, FromOpenPMDPulseLaser, TWTSLaser
 from .species import Species
-from .layout import PseudoRandomLayout, GriddedLayout
+from .layout import PseudoRandomLayout, GriddedLayout, OnePosition
 from . import constants
 
 from . import diagnostics
@@ -48,6 +48,7 @@ __all__ = [
     "Species",
     "PseudoRandomLayout",
     "GriddedLayout",
+    "OnePosition",
     "constants",
     "FoilDistribution",
     "UniformDistribution",

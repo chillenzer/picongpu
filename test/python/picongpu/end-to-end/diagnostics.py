@@ -14,7 +14,7 @@ import numpy as np
 from picongpu.picmi import (
     Cartesian3DGrid,
     ElectromagneticSolver,
-    GriddedLayout,
+    OnePosition,
     Simulation,
 )
 from picongpu.picmi import Species as Species
@@ -48,7 +48,7 @@ from .distributions import Gaussian, SphereFlanks
 
 logging.basicConfig(level=logging.INFO)
 
-LAYOUT = GriddedLayout(n_macroparticles_per_cell=2)
+LAYOUT = OnePosition(n_macroparticles_per_cell=2)
 PARTICLE_SHAPE = "counter"
 SPECIES = [
     Species(
