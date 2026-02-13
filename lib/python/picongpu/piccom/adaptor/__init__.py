@@ -10,4 +10,8 @@ from .local_folder_adaptor import (
     Result as Result,
     Ordering as Ordering,
     NotFound as NotFound,
+    HandleExtractionFailures as HandleExtractionFailures,
+    Parameter as Parameter,
+    Retrievable as Retrievable,
+    _extract_from as _extract_from,
 )
