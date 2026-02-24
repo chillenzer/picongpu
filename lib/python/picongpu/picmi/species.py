@@ -133,6 +133,10 @@ class Species(BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._register_initial_requirements()
+        if len(masses := [m for m in self._requirements if isinstance(m, Mass)]) > 0:
+            self.mass = masses[0].mass_si
+        if len(charges := [c for c in self._requirements if isinstance(c, Charge)]) > 0:
+            self.charge = self.charge or charges[0].charge_si
 
     def _register_initial_requirements(self):
         constants = (

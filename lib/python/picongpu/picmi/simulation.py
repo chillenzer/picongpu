@@ -64,14 +64,6 @@ class _DensityImpl(BaseModel):
         )
 
 
-def is_iterable(obj):
-    try:
-        iter(obj)
-        return True
-    except TypeError:
-        return False
-
-
 def _not_allowed_template_directories(directories: tuple[Path]) -> dict[Path, str]:
     """
     Check the directories and return a path->reason mapping of non-allowed ones.

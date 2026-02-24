@@ -5,7 +5,9 @@ Authors: Julian Lenz
 License: GPLv3+
 """
 
-from inspect import signature
+from functools import reduce
+from inspect import _empty, signature
+from operator import methodcaller, or_
 from typing import Any, Callable, Iterable
 
 from sympy import Expr, Symbol, symbols
@@ -13,12 +15,10 @@ from typeguard import typechecked
 
 from picongpu.picmi.particle_functor.rng_arg import RNGArg
 from picongpu.picmi.particle_functor.unit_dimension import UnitDimension
-from picongpu.pypicongpu.particle_functor import (
-    ParticleFunctor as PyPIConGPUParticleFunctor,
-    UnitDimension as PyPIConGPUUnitDimension,
-    generate_preamble,
-)
-from picongpu.pypicongpu.util import alt
+from picongpu.pypicongpu.particle_functor import ParticleFunctor as PyPIConGPUParticleFunctor
+from picongpu.pypicongpu.particle_functor import UnitDimension as PyPIConGPUUnitDimension
+from picongpu.pypicongpu.particle_functor import generate_preamble
+from picongpu.pypicongpu.util import UnpackChain, alt, is_iterable
 
 _COORDINATE_SYSTEM = {
     (
@@ -43,9 +43,11 @@ class Particle:
     def get(self, attribute, **kwargs) -> Expr | Iterable[Expr]:
         NotImplementedError()
 
+    def finalize(self, expression):
+        return expression
 
-@typechecked
-class AbstractParticle(Particle):
+
+class MacroParticle(Particle):
     needs_total_position = False
 
     def __init__(self):
@@ -94,45 +96,81 @@ class AbstractParticle(Particle):
         return my_symbols
 
 
+_SCALING = {Symbol("mass"): 1, Symbol("Ekin"): 1, Symbol("charge"): 1}
+
+
+class PhysicalParticle(MacroParticle):
+    def __init__(self, scales_with_weighting=None):
+        self.scales_with_weighting = scales_with_weighting
+        super().__init__()
+
+    def get(self, *args, **kwargs):
+        my_symbols = super().get(*args, **kwargs)
+        if self.scales_with_weighting is None:
+            w = super().get("weighting")
+            rescaled = tuple(s * (w ** (-_SCALING[s])) for s in alt(lambda: iter(my_symbols), [my_symbols]))
+            my_symbols = rescaled if is_iterable(my_symbols) else rescaled[0]
+        return my_symbols
+
+    def finalize(self, expression):
+        if self.scales_with_weighting is not None:
+            expression *= super().get("weighting") ** (-self.scales_with_weighting)
+        return expression
+
+
 @typechecked
 class ParticleFunctor:
+    def __new__(cls, functor=None, **kwargs):
+        if functor is None:
+            return lambda f: ParticleFunctor(functor=f, **kwargs)
+        return super().__new__(cls)
+
     def __init__(
         self,
-        name: str,
         functor: Callable[[Particle], Any] | Callable[[Particle, RNGArg], Any],
-        return_type: type | str = float,
+        *,
+        name: str | None = None,
+        return_type: type | str | None = None,
         unit_dimension: UnitDimension | None = None,
+        scales_with_weighting: int | None = None,
     ):
-        self.name = name
         self.functor = functor
-        self.return_type = return_type
+        self.name = name or functor.__name__
+        self.return_type = return_type or (
+            v if not issubclass(v := signature(functor).return_annotation, _empty) else float
+        )
         self.unit_dimension = unit_dimension or UnitDimension()
-        rng_classes = [
+        self.scales_with_weighting = scales_with_weighting
+        self.argument_types = [
             cls
-            for p in signature(self.functor).parameters.values()
-            if isinstance(p.annotation, type) and issubclass(cls := p.annotation, RNGArg)
+            for cls in UnpackChain(signature(self.functor)).parameters.values().annotation
+            if any(issubclass(cls, expected) for expected in [Particle, RNGArg])
         ]
-        if len(rng_classes) > 1:
+        if not issubclass(self.argument_types[0], Particle):
             raise ValueError(
-                f"ParticleFunctor can take at most one RNG. You have requested {rng_classes=} in your signature."
+                f"ParticleFunctor takes exactly one particle as first argument. You have requested {self.argument_types=} in your signature."
             )
-        self.rng_class = alt(lambda: rng_classes[0], None) or (lambda: None)
+        if issubclass(particle_type := self.argument_types[0], PhysicalParticle):
+            self.argument_types[0] = lambda: particle_type(self.scales_with_weighting)
+        else:
+            if self.scales_with_weighting is not None:
+                raise TypeError(f"Can't apply scaling to {particle_type=}. You gave: {self.scales_with_weighting=}.")
+        if self.argument_types.count(RNGArg) > 1:
+            raise ValueError(
+                f"ParticleFunctor can take at most one RNG. You have requested {self.argument_types=} in your signature."
+            )
 
     def get_as_pypicongpu(self, mode) -> PyPIConGPUParticleFunctor:
-        particle = AbstractParticle()
-        rng = self.rng_class()
-        functor_expression = self(particle) if rng is None else self(particle, rng)
+        args = [cls() for cls in self.argument_types]
         return PyPIConGPUParticleFunctor(
             name=self.name,
-            functor_expression=functor_expression,
-            functor_preamble=generate_preamble(
-                particle.get_attribute_map() | alt(lambda: rng.get_attribute_map(), {}), mode=mode
-            ),
+            functor_expression=self(*args),
+            functor_preamble=generate_preamble(reduce(or_, map(methodcaller("get_attribute_map"), args)), mode=mode),
             return_type=self.return_type,
             unit_dimension=PyPIConGPUUnitDimension(unit_dimension=self.unit_dimension.unit_vector.tolist()),
-            needs_total_position=particle.needs_total_position,
-            rng_info=alt(lambda: rng.model_dump(mode="python"), None),
+            needs_total_position=args[0].needs_total_position,
+            rng_info=alt(lambda: args[1].model_dump(mode="python"), None),
         )
 
-    def __call__(self, *args):
-        return self.functor(*args)
+    def __call__(self, particle, *args):
+        return particle.finalize(self.functor(particle, *args))

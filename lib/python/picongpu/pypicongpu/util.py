@@ -7,13 +7,21 @@ License: GPLv3+
 
 import logging
 from itertools import chain
-from operator import itemgetter
+from operator import attrgetter, itemgetter, methodcaller
 from types import GenericAlias, UnionType
 from typing import Any, Self
 
 import typeguard
 
 attr_cnt = 0
+
+
+def is_iterable(obj):
+    try:
+        iter(obj)
+        return True
+    except TypeError:
+        return False
 
 
 def alt(expr, alternative, *exprs, ignore=(AttributeError, TypeError, IndexError)):
@@ -62,10 +70,6 @@ def alt(expr, alternative, *exprs, ignore=(AttributeError, TypeError, IndexError
         except TypeError as error2:
             errors.append(error2)
             return alternative
-
-
-class _Attribute(str):
-    pass
 
 
 class _Item:
@@ -124,28 +128,35 @@ class UnpackChain:
         self.obj = obj
 
     def __getattr__(self, name: str, /) -> Self:
-        self._requests.append(_Attribute(name))
+        self._requests.append(attrgetter(name))
         return self
 
     def __getitem__(self, *args):
-        self._requests.append(_Item(args))
+        self._requests.append(itemgetter(*args))
+        return self
+
+    def values(self):
+        self._requests.append(methodcaller("values"))
+        return self
+
+    def items(self):
+        self._requests.append(methodcaller("items"))
+        return self
+
+    def keys(self):
+        self._requests.append(methodcaller("keys"))
         return self
 
     def __iter__(self):
         if len(self._requests) == 0:
             return iter([self.obj])
 
-        new_obj = alt(
-            # Using itemgetter here because indexing via [*args] apparently doesn't work?
-            lambda: itemgetter(*self._requests[0].args)(self.obj),
-            lambda: getattr(self.obj, self._requests[0]),
-            NotImplemented,
-        )
+        new_obj = alt(lambda: self._requests[0](self.obj), NotImplemented)
 
         if new_obj is NotImplemented:
             return iter([])
 
-        if len(self._requests) == 1 or alt(lambda: hasattr(new_obj, self._requests[1]), False):
+        if len(self._requests) == 1 or alt(lambda: self._requests[1](new_obj), False):
             return iter(UnpackChain(new_obj, requests=self._requests[1:]))
 
         return chain(*(UnpackChain(x, requests=self._requests[1:]) for x in alt(lambda: iter(new_obj), [])))

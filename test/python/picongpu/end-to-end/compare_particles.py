@@ -51,10 +51,11 @@ def read_fields(series_name, names=("E", "B")):
     series = opmd.Series(str(series_name), opmd.Access.read_only)
     tmp = {}
     for name in names:
+        mesh = series.iterations[0].meshes[name]
         try:
-            tmp[name] = [series.iterations[0].meshes[name][c].load_chunk() for c in "xyz"]
+            tmp[name] = [mesh[c].load_chunk() * mesh[c].unit_SI for c in "xyz"]
         except ErrorWrongAPIUsage:
-            tmp[name] = series.iterations[0].meshes[name].load_chunk()
+            tmp[name] = mesh.load_chunk() * mesh.unit_SI
     series.flush()
     return {key: np.array(value) for key, value in tmp.items()}
 
