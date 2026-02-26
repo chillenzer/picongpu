@@ -9,8 +9,11 @@ License: GPLv3+
 import math
 import typing
 
+import numpy as np
 import picmistandard
 import typeguard
+
+from scipy.spatial.transform import Rotation
 
 from ...pypicongpu import laser, util
 from ..copy_attributes import default_converts_to
@@ -30,10 +33,10 @@ class GaussianLaser(picmistandard.PICMI_GaussianLaser, BaseLaser):
         Central wavelength of the laser [m].
 
     - waist : float
-        Spot size (1/e^2 radius) of the laser at focus [m].
+        Spot size (1/e^2 radius of the intensity) of the laser at focus [m].
 
     - duration : float
-        Full-width-half-maximum (FWHM) duration of the pulse [s].
+        Full-width-half-maximum (FWHM of intensity) duration of the pulse [s].
 
     - propagation_direction : list[float]
         Normalized vector of propagation direction.
@@ -82,7 +85,7 @@ class GaussianLaser(picmistandard.PICMI_GaussianLaser, BaseLaser):
         centroid_position,
         a0=None,
         E0=None,
-        picongpu_polarization_type=(PolarizationType.LINEAR),
+        picongpu_polarization_type=PolarizationType.LINEAR,
         picongpu_laguerre_modes: typing.Optional[typing.List[float]] = None,
         picongpu_laguerre_phases: typing.Optional[typing.List[float]] = None,
         # make sure to always place Huygens-surface inside PML-boundaries,
@@ -149,3 +152,66 @@ class GaussianLaser(picmistandard.PICMI_GaussianLaser, BaseLaser):
         assert self._propagation_connects_centroid_and_focus(), (
             "propagation_direction must connect centroid_position and focus_position"
         )
+
+    def _complex_amplitude_standard_conditions(self, x, y, z, t):
+        """
+        This is
+        - focus is in the origin at t=0
+        - propagation in z direction
+        - polarization in x direction
+        """
+
+        from picongpu.picmi.constants import c
+
+        Omega0 = 2 * np.pi * c / self.wavelength
+        w0x = self.waist
+        w0y = self.waist
+        tau0 = self.duration / np.sqrt(2 * np.log(2))
+        zRx = 0.5 * Omega0 * w0x**2 / c
+        zRy = 0.5 * Omega0 * w0y**2 / c
+        Rx_inv = z / (z**2 + zRx**2)
+        Ry_inv = z / (z**2 + zRy**2)
+        wx = w0x * np.sqrt(1 + z**2 / zRx**2)
+        wy = w0y * np.sqrt(1 + z**2 / zRy**2)
+        gamma4 = (t - z / c - 0.5 / c * (x**2 * Rx_inv + y**2 * Ry_inv)) / tau0
+
+        return (
+            self.E0
+            / (tau0 * np.sqrt(np.pi))
+            * (1 + z**2 / zRx**2) ** (-1 / 4)
+            * (1 + z**2 / zRy**2) ** (-1 / 4)
+            * np.exp(1.0j * Omega0 * gamma4 * tau0)
+            * np.exp(0.5j * (np.arctan(z / zRx) + np.arctan(z / zRy)))
+            * np.exp(-(x**2 / wx**2 + y**2 / wy**2))
+            * np.exp(-(gamma4**2))
+        )
+
+    def complex_amplitude(self, x, y, z, t=0.0):
+        from picongpu.picmi.constants import c
+
+        coords = np.asarray([x, y, z]) - np.asarray(self.focal_position).reshape(-1, 1, 1, 1)
+        t -= np.dot(np.asarray(self.focal_position) - self.centroid_position, self.propagation_direction) / c
+        r = Rotation.align_vectors([[1, 0, 0], [0, 0, 1]], [self.polarization_direction, self.propagation_direction])[0]
+        x, y, z = np.rollaxis(r.apply(np.rollaxis(coords, 0, 4)), -1, 0)
+        return self._complex_amplitude_standard_conditions(x, y, z, t)
+
+    def E(self, x, y, z, t=0.0):
+        amplitude = np.real(self.complex_amplitude(x, y, z, t)).astype(float)
+        if self.picongpu_polarization_type == PolarizationType.LINEAR:
+            return np.einsum("i,j...->ij...", self.polarization_direction, amplitude)
+        elif self.picongpu_polarization_type == PolarizationType.CIRCULAR:
+            raise NotImplementedError("Circular polarization is not yet implemented.")
+        else:
+            raise ValueError("Unknown {self.picongpu_polarization_type=}.")
+
+    def Ex(self, x, y, z, t=0.0):
+        return self.E(x, y, z, t)[0]
+
+    def Ey(self, x, y, z, t=0.0):
+        return self.E(x, y, z, t)[1]
+
+    def Ez(self, x, y, z, t=0.0):
+        return self.E(x, y, z, t)[2]
+
+    def envelope(self, x, y, z, t=0.0):
+        return np.abs(self.complex_amplitude(x, y, z, t))
