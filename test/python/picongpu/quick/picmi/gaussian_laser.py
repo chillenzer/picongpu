@@ -5,17 +5,19 @@ Authors: Hannes Troepgen, Brian Edward Marre, Alexander Debus, Richard Pausch
 License: GPLv3+
 """
 
-from picongpu import picmi
-
-import unittest
 from math import sqrt
+from unittest import TestCase
+
+import numpy as np
+from picongpu.picmi import Cartesian3DGrid, ElectromagneticSolver, GaussianLaser, Simulation
+from picongpu.picmi.lasers import PolarizationType
 from scipy.constants import c
 
 
-class TestPicmiGaussianLaser(unittest.TestCase):
+class TestPicmiGaussianLaser(TestCase):
     def test_basic(self):
         """full laser example"""
-        picmi_laser = picmi.GaussianLaser(
+        picmi_laser = GaussianLaser(
             wavelength=1,
             waist=2,
             duration=3,
@@ -41,7 +43,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         # centroid is not a picongpu input
         self.assertEqual(5, pypic_laser.E0_si)
         self.assertEqual(
-            picmi.lasers.PolarizationType.LINEAR.get_as_pypicongpu(),
+            PolarizationType.LINEAR.get_as_pypicongpu(),
             pypic_laser.polarization_type,
         )
         self.assertEqual([2.0, 3.0], pypic_laser.laguerre_modes)
@@ -58,7 +60,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
     def test_scalar_values_negative(self):
         """waist, duration and wavelelngth must be > 0"""
         with self.assertRaises(ValueError):
-            picmi.GaussianLaser(
+            GaussianLaser(
                 -1,
                 -2,
                 -3,
@@ -74,7 +76,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         # x, z checked against centroid pos
 
         # all ok (difference in x)
-        picmi_laser = picmi.GaussianLaser(
+        picmi_laser = GaussianLaser(
             1,
             2,
             3,
@@ -102,7 +104,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
 
         for invalid_propagation_vector in invalid_propagation_vectors:
             with self.assertRaisesRegex(ValueError, ".*propagation.*"):
-                picmi.GaussianLaser(
+                GaussianLaser(
                     1,
                     2,
                     3,
@@ -114,7 +116,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
                 )
 
         # positive direction works
-        picmi.GaussianLaser(
+        GaussianLaser(
             1,
             2,
             3,
@@ -136,7 +138,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
 
         for invalid_polarization in invalid_polarizations:
             with self.assertRaisesRegex(ValueError, ".*polarization.*"):
-                picmi.GaussianLaser(
+                GaussianLaser(
                     1,
                     2,
                     3,
@@ -151,7 +153,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         valid_polarization_vectors = [(1, 0, 0), (0, 1, 0), (0, 0, 1)]
 
         for valid_polarization_vector in valid_polarization_vectors:
-            picmi_laser = picmi.GaussianLaser(
+            picmi_laser = GaussianLaser(
                 1,
                 2,
                 3,
@@ -167,7 +169,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
     def test_minimal(self):
         """mimimal possible initialization"""
         # does not throw, normal usage process works
-        picmi_laser = picmi.GaussianLaser(
+        picmi_laser = GaussianLaser(
             1,
             2,
             3,
@@ -184,7 +186,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         """centroid position must have y<=0"""
 
         with self.assertRaisesRegex(ValueError, ".*centroid.*[yY].*(zero|0).*"):
-            picmi.GaussianLaser(
+            GaussianLaser(
                 1,
                 2,
                 3,
@@ -198,7 +200,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         # valid example:
         self.assertNotEqual(
             {},
-            picmi.GaussianLaser(
+            GaussianLaser(
                 1,
                 2,
                 3,
@@ -215,7 +217,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
     def test_laguerre_modes_types(self):
         """laguerre type-check before translation"""
         with self.assertRaises(TypeError):
-            picmi.GaussianLaser(
+            GaussianLaser(
                 1,
                 2,
                 3,
@@ -227,7 +229,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
             )
 
         with self.assertRaises(TypeError):
-            picmi.GaussianLaser(
+            GaussianLaser(
                 1,
                 2,
                 3,
@@ -241,7 +243,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
     def test_laguerre_modes_optional(self):
         """laguerre modes are optional"""
         # allowed: not given at all
-        picmi_laser = picmi.GaussianLaser(
+        picmi_laser = GaussianLaser(
             wavelength=1,
             waist=2,
             duration=3,
@@ -256,7 +258,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         self.assertEqual([0.0], pypic_laser.laguerre_phases)
 
         # allowed: explicitly None
-        picmi_laser = picmi.GaussianLaser(
+        picmi_laser = GaussianLaser(
             wavelength=1,
             waist=2,
             duration=3,
@@ -274,7 +276,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
 
         # not allowed: only phases (or only modes) given
         with self.assertRaisesRegex(Exception, ".*[Ll]aguerre.*"):
-            picmi.GaussianLaser(
+            GaussianLaser(
                 wavelength=1,
                 waist=2,
                 duration=3,
@@ -288,7 +290,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
             )
 
         with self.assertRaisesRegex(Exception, ".*[Ll]aguerre.*"):
-            picmi.GaussianLaser(
+            GaussianLaser(
                 wavelength=1,
                 waist=2,
                 duration=3,
@@ -303,7 +305,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
     def test_values_centroid_position_center(self):
         """centroid position is fixed for given bounding box"""
         # on its own, any centroid poisition with y=0 is permitted
-        picmi_laser = picmi.GaussianLaser(
+        picmi_laser = GaussianLaser(
             1,
             2,
             3,
@@ -315,7 +317,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         )
         self.assertNotEqual({}, picmi_laser.get_as_pypicongpu().get_rendering_context())
 
-        grid_valid = picmi.Cartesian3DGrid(
+        grid_valid = Cartesian3DGrid(
             number_of_cells=[128, 512, 256],
             lower_bound=[0, 0, 0],
             upper_bound=[17, 192, 42],
@@ -324,8 +326,8 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         )
 
         # valid grid-laser combination working
-        solver_valid = picmi.ElectromagneticSolver(method="Yee", grid=grid_valid)
-        sim_valid = picmi.Simulation(time_step_size=1, max_steps=2, solver=solver_valid)
+        solver_valid = ElectromagneticSolver(method="Yee", grid=grid_valid)
+        sim_valid = Simulation(time_step_size=1, max_steps=2, solver=solver_valid)
         sim_valid.add_laser(picmi_laser, None)
 
         # translates without issue:
@@ -335,7 +337,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         """only either a0 or E0 allowed to be set"""
 
         with self.assertRaisesRegex(ValueError, "Only one of E0 or a0 should be specified. You set both."):
-            picmi.GaussianLaser(
+            GaussianLaser(
                 1,
                 2,
                 3,
@@ -351,7 +353,7 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         """either a0 or E0 have to be set"""
 
         with self.assertRaisesRegex(ValueError, "Both E0 or a0 are None. You must specify exactly one."):
-            picmi.GaussianLaser(
+            GaussianLaser(
                 1,
                 2,
                 3,
@@ -360,3 +362,66 @@ class TestPicmiGaussianLaser(unittest.TestCase):
                 propagation_direction=[0, 1, 0],
                 polarization_direction=[1, 0, 0],
             )
+
+
+class TestGaussianLaserFieldComputation(TestCase):
+    """
+    This test case is about comparing the effect of various parameters
+    with the laser under standard conditions.
+    This is useful because the latter formula can be found verbatim in the documentation,
+    so there's a good chance we've got it right.
+    """
+
+    def setUp(self):
+        self.number_of_cells = 100
+        # choosing quadratic to have some symmetry to exploit for easy transformations
+        self.grid = (
+            np.mgrid[: self.number_of_cells, : self.number_of_cells, : self.number_of_cells] - self.number_of_cells / 2
+        )
+        self.reference_kwargs = dict(
+            wavelength=4.0,
+            waist=10.0,
+            duration=10 / c,
+            propagation_direction=[0, 0, 1],
+            polarization_direction=[1, 0, 0],
+            focal_position=[0, 0, 0],
+            centroid_position=[0, 0, 0],
+            a0=1.0,
+        )
+        self.reference_E = self.make_laser().E(*self.grid)
+
+    def make_laser(self, **kwargs):
+        return GaussianLaser(**(self.reference_kwargs | kwargs))
+
+    def test_rotate_propagation(self):
+        rotated_E = self.make_laser(propagation_direction=[0, 1, 0]).E(*self.grid)
+        rotated_reference_E = np.rollaxis(self.reference_E, 3, 2)
+        np.testing.assert_allclose(rotated_E, rotated_reference_E)
+
+    def test_rotate_polarization(self):
+        rotated_E = self.make_laser(polarization_direction=[0, 1, 0]).E(*self.grid)
+        rotated_reference_E = self.reference_E[[1, 0, 2], ...]
+        np.testing.assert_allclose(rotated_E, rotated_reference_E)
+
+    def test_shift_centroid(self):
+        centroid = np.array([0, 0, self.number_of_cells // 4])
+        shifted_E = self.make_laser(centroid_position=centroid).E(*self.grid)
+        shifted_reference_E = self.make_laser().E(*self.grid, t=centroid[2] / c)
+        np.testing.assert_allclose(shifted_E, shifted_reference_E)
+
+    def test_shift_focus(self):
+        focus = np.array([0, 0, self.number_of_cells // 4])
+        # We've gotta shift the centroid, so we're still in the focus at t=0.
+        centroid = focus
+        shifted_E = self.make_laser(focal_position=focus, centroid_position=centroid).E(*self.grid)
+        shifted_reference_E = self.make_laser().E(*(self.grid - focus.reshape(-1, 1, 1, 1)))
+        np.testing.assert_allclose(shifted_E, shifted_reference_E)
+
+    def test_shift_centroid_and_focus(self):
+        centroid = np.array([0, 0, -self.number_of_cells // 4])
+        focus = np.array([0, 0, self.number_of_cells // 4])
+        shifted_E = self.make_laser(focal_position=focus, centroid_position=centroid).E(*self.grid)
+        shifted_reference_E = self.make_laser().E(
+            *(self.grid - focus.reshape(-1, 1, 1, 1)), t=-(focus[2] - centroid[2]) / c
+        )
+        np.testing.assert_allclose(shifted_E, shifted_reference_E)
