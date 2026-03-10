@@ -137,8 +137,8 @@ class GaussianLaser(picmistandard.PICMI_GaussianLaser, BaseLaser):
         )
 
         self.phi0 = self.phi0 or 0.0
-        # self.pulse_init = self._compute_pulse_init()
         self.check()
+        self.pulse_init = self._compute_pulse_init()
 
     def _Omega0(self):
         from picongpu.picmi.constants import c
@@ -158,7 +158,7 @@ class GaussianLaser(picmistandard.PICMI_GaussianLaser, BaseLaser):
         # unsupported: fill_in (do not warn, b/c we don't know if it has been
         # set explicitly, and always warning is bad)
 
-        #        self._validate_common_properties()
+        self._validate_common_properties()
         assert self._propagation_connects_centroid_and_focus(), (
             "propagation_direction must connect centroid_position and focus_position"
         )

@@ -10,13 +10,20 @@ import math
 import numpy as np
 import typeguard
 
+from picongpu.picmi.constants import c
 from picongpu.picmi.copy_attributes import default_converts_to
 from picongpu.picmi.lasers.base_laser import BaseLaser
 from picongpu.picmi.lasers.polarization_type import PolarizationType
 from picongpu.pypicongpu.laser import PlaneWaveLaser as PyPIConGPU_PlaneWaveLaser
 
 
-@default_converts_to(PyPIConGPU_PlaneWaveLaser)
+@default_converts_to(
+    PyPIConGPU_PlaneWaveLaser,
+    conversions={
+        "focal_position": lambda *_, **__: [0, 0, 0],
+        "laser_nofocus_constant_si": "picongpu_plateau_duration",
+    },
+)
 @typeguard.typechecked
 class PlaneWaveLaser(BaseLaser):
     """
@@ -28,7 +35,7 @@ class PlaneWaveLaser(BaseLaser):
         Laser wavelength [m], defined as :math:`\\lambda_0` in the above formula
 
     duration: float
-        Duration of the Gaussian pulse [s], defined as :math:`\\tau` in the above formula
+        Duration of the temporal Gaussian pulse [s], defined as :math:`\\tau` in the above formula
 
     propagation_direction: unit vector of length 3 of floats
         Direction of propagation [1]
@@ -88,8 +95,8 @@ class PlaneWaveLaser(BaseLaser):
         self.picongpu_polarization_type = picongpu_polarization_type
         self.picongpu_huygens_surface_positions = picongpu_huygens_surface_positions
         self.focus_pos = [0.0, 0.0, 0.0]
-        # self._validate_common_properties()
-        # self.pulse_init = self._compute_pulse_init()
+        self.check()
+        self.pulse_init = self._compute_pulse_init()
 
     """PICMI object for Plane Wave Laser"""
 
@@ -97,7 +104,9 @@ class PlaneWaveLaser(BaseLaser):
         self._validate_common_properties()
 
     def complex_amplitude(self, x, y, z, t=0.0):
-        return np.exp(-1.0j * self.k0 * np.einsum("i,i...->...", self.propagation_direction, [x, y, z]))
+        prop = t / c - np.einsum("i,i...->...", self.propagation_direction, [x, y, z])
+        prop_env = prop
+        return np.exp(-(prop_env**2) / self.duration**2) * np.exp(-1.0j * self.k0 * prop)
 
     def E(self, x, y, z, t=0.0):
         return np.real(self.complex_amplitude(x, y, z, t))[..., np.newaxis] * self.polarization_vector_at(x, y, z, t)
