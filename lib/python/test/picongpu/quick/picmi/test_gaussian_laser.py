@@ -8,6 +8,7 @@ License: GPLv3+
 from math import sqrt
 from unittest import TestCase
 
+import numpy as np
 import pytest
 from picongpu import picmi
 from picongpu.picmi import Cartesian3DGrid, ElectromagneticSolver, GaussianLaser, Simulation
@@ -365,3 +366,66 @@ class TestPicmiGaussianLaser(TestCase):
                 propagation_direction=[0, 1, 0],
                 polarization_direction=[1, 0, 0],
             )
+
+
+class TestGaussianLaserFieldComputation(TestCase):
+    """
+    This test case is about comparing the effect of various parameters
+    with the laser under standard conditions.
+    This is useful because the latter formula can be found verbatim in the documentation,
+    so there's a good chance we've got it right.
+    """
+
+    def setUp(self):
+        self.number_of_cells = 100
+        # choosing quadratic to have some symmetry to exploit for easy transformations
+        self.grid = (
+            np.mgrid[: self.number_of_cells, : self.number_of_cells, : self.number_of_cells] - self.number_of_cells / 2
+        )
+        self.reference_kwargs = dict(
+            wavelength=4.0,
+            waist=10.0,
+            duration=10 / c,
+            propagation_direction=[0, 0, 1],
+            polarization_direction=[1, 0, 0],
+            focal_position=[0, 0, 0],
+            centroid_position=[0, 0, 0],
+            a0=1.0,
+        )
+        self.reference_E = self.make_laser().E(*self.grid)
+
+    def make_laser(self, **kwargs):
+        return GaussianLaser(**(self.reference_kwargs | kwargs))
+
+    def test_rotate_propagation(self):
+        rotated_E = self.make_laser(propagation_direction=[0, 1, 0]).E(*self.grid)
+        rotated_reference_E = np.rollaxis(self.reference_E, 3, 2)
+        np.testing.assert_allclose(rotated_E, rotated_reference_E)
+
+    def test_rotate_polarization(self):
+        rotated_E = self.make_laser(polarization_direction=[0, 1, 0]).E(*self.grid)
+        rotated_reference_E = self.reference_E[[1, 0, 2], ...]
+        np.testing.assert_allclose(rotated_E, rotated_reference_E)
+
+    def test_shift_centroid(self):
+        centroid = np.array([0, 0, self.number_of_cells // 4])
+        shifted_E = self.make_laser(centroid_position=centroid).E(*self.grid)
+        shifted_reference_E = self.make_laser().E(*self.grid, t=centroid[2] / c)
+        np.testing.assert_allclose(shifted_E, shifted_reference_E)
+
+    def test_shift_focus(self):
+        focus = np.array([0, 0, self.number_of_cells // 4])
+        # We've gotta shift the centroid, so we're still in the focus at t=0.
+        centroid = focus
+        shifted_E = self.make_laser(focal_position=focus, centroid_position=centroid).E(*self.grid)
+        shifted_reference_E = self.make_laser().E(*(self.grid - focus.reshape(-1, 1, 1, 1)))
+        np.testing.assert_allclose(shifted_E, shifted_reference_E)
+
+    def test_shift_centroid_and_focus(self):
+        centroid = np.array([0, 0, -self.number_of_cells // 4])
+        focus = np.array([0, 0, self.number_of_cells // 4])
+        shifted_E = self.make_laser(focal_position=focus, centroid_position=centroid).E(*self.grid)
+        shifted_reference_E = self.make_laser().E(
+            *(self.grid - focus.reshape(-1, 1, 1, 1)), t=-(focus[2] - centroid[2]) / c
+        )
+        np.testing.assert_allclose(shifted_E, shifted_reference_E)
