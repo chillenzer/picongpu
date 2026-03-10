@@ -6,17 +6,17 @@ License: GPLv3+
 """
 
 import math
-import typing
 
+import numpy as np
 import typeguard
 
-from ...pypicongpu import laser
-from ..copy_attributes import default_converts_to
-from .base_laser import BaseLaser
-from .polarization_type import PolarizationType
+from picongpu.picmi.copy_attributes import default_converts_to
+from picongpu.picmi.lasers.base_laser import BaseLaser
+from picongpu.picmi.lasers.polarization_type import PolarizationType
+from picongpu.pypicongpu.laser import PlaneWaveLaser as PyPIConGPU_PlaneWaveLaser
 
 
-@default_converts_to(laser.PlaneWaveLaser)
+@default_converts_to(PyPIConGPU_PlaneWaveLaser)
 @typeguard.typechecked
 class PlaneWaveLaser(BaseLaser):
     """
@@ -68,11 +68,7 @@ class PlaneWaveLaser(BaseLaser):
         # @todo create check for insufficient dimension
         # @todo create check in simulation for conflict between PMLs and
         # Huygens-surfaces
-        picongpu_huygens_surface_positions: typing.List[typing.List[int]] = [
-            [16, -16],
-            [16, -16],
-            [16, -16],
-        ],
+        picongpu_huygens_surface_positions: list[list[int]] = [[16, -16], [16, -16], [16, -16]],
     ):
         if wavelength <= 0:
             raise ValueError(f"wavelength must be > 0. You gave {wavelength=}.")
@@ -92,10 +88,31 @@ class PlaneWaveLaser(BaseLaser):
         self.picongpu_polarization_type = picongpu_polarization_type
         self.picongpu_huygens_surface_positions = picongpu_huygens_surface_positions
         self.focus_pos = [0.0, 0.0, 0.0]
-        self._validate_common_properties()
-        self.pulse_init = self._compute_pulse_init()
+        # self._validate_common_properties()
+        # self.pulse_init = self._compute_pulse_init()
 
     """PICMI object for Plane Wave Laser"""
 
     def check(self):
         self._validate_common_properties()
+
+    def complex_amplitude(self, x, y, z, t=0.0):
+        return np.exp(-1.0j * self.k0 * np.einsum("i,i...->...", self.propagation_direction, [x, y, z]))
+
+    def E(self, x, y, z, t=0.0):
+        return np.real(self.complex_amplitude(x, y, z, t))[..., np.newaxis] * self.polarization_vector_at(x, y, z, t)
+
+    def Ex(self, x, y, z, t=0.0):
+        return self.E(x, y, z, t)[..., 0]
+
+    def Ey(self, x, y, z, t=0.0):
+        return self.E(x, y, z, t)[..., 1]
+
+    def Ez(self, x, y, z, t=0.0):
+        return self.E(x, y, z, t)[..., 2]
+
+    def polarization_vector_at(self, x, y, z, t=0.0):
+        shape = np.broadcast_shapes(x.shape, y.shape, z.shape)
+        return np.ones(shape + (len(self.polarization_direction),)) * np.reshape(
+            self.polarization_direction, len(shape) * (1,) + (-1,)
+        )
