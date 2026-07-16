@@ -5,15 +5,12 @@ Authors: Julian Lenz, Masoud Afshari
 License: GPLv3+
 """
 
-import typeguard
-
 from ...pypicongpu import laser
 from ..copy_attributes import default_converts_to
 from .gaussian_laser import GaussianLaser  # inherit standard Gaussian laser fields
 
 
 @default_converts_to(laser.DispersivePulseLaser)
-@typeguard.typechecked
 class DispersivePulseLaser(GaussianLaser):
     """
     PICMI Dispersive Pulse Laser.
