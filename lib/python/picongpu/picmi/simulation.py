@@ -135,10 +135,25 @@ def _validate_collisional_physics_setup(interactions):
     if "collision" in types:
         # We've found one or more bare collision flying around in the list,
         # so we've gotta merge them into one setup.
-        return list(types["other"]) + [CollisionalPhysicsSetup(collisions=list(types["collision"]))]
+        return list(types.get("other", [])) + [CollisionalPhysicsSetup(collisions=list(types["collision"]))]
 
     # No collisions whatsoever...
     return interactions
+
+
+def _single_or_default(candidates, default, what):
+    """
+    Return the single user-configured value of the given kind (`what`) or `default` if none was configured.
+
+    PIConGPU accepts at most one value for each of these settings, so raise an error if the user
+    configured conflicting (distinct) values.
+    """
+    distinct = unique(candidates)
+    if len(distinct) > 1:
+        raise ValueError(
+            f"You have configured {what} multiple times with different arguments. This is not allowed! You gave {distinct=}."
+        )
+    return distinct[0] if distinct else default
 
 
 # may not use pydantic since inherits from _DocumentedMetaClass
@@ -455,18 +470,16 @@ class Simulation(picmistandard.PICMI_Simulation):
             None if self.picongpu_walltime is None else pypicongpu.walltime.Walltime(walltime=self.picongpu_walltime)
         )
         time_steps = self.max_steps if self.max_steps is not None else math.ceil(self.max_time / self.time_step_size)
-        # We provide the default as last element and we'll only read the first element:
-        synchrotron_params = unique(
-            [x.synchrotron_parameters for x in self.picongpu_interaction if isinstance(x, Synchrotron)]
-        ) + [SynchrotronParams()]
-        if len(synchrotron_params) > 2:
-            raise ValueError(
-                f"You have configured the Synchrotron extension multiple times with different arguments. This is not allowed! You gave {synchrotron_params[:-1]=}."
-            )
-        # We provide the default as last element and we'll only read the first element:
-        collisions = [x for x in self.picongpu_interaction if isinstance(x, CollisionalPhysicsSetup)] + [
-            CollisionalPhysicsSetup()
-        ]
+        synchrotron_params = _single_or_default(
+            [x.synchrotron_parameters for x in self.picongpu_interaction if isinstance(x, Synchrotron)],
+            default=SynchrotronParams(),
+            what="the Synchrotron extension",
+        )
+        collisions = _single_or_default(
+            [x for x in self.picongpu_interaction if isinstance(x, CollisionalPhysicsSetup)],
+            default=CollisionalPhysicsSetup(),
+            what="the collisional physics setup",
+        )
 
         return pypicongpu.simulation.Simulation(
             species=map(get_as_pypicongpu, sorted(self.species)),
@@ -484,8 +497,8 @@ class Simulation(picmistandard.PICMI_Simulation):
             output=self._generate_plugins(time_steps),
             particle_filters=self._collect_particle_filters(),
             base_density=self._get_base_density(),
-            synchrotron_params=synchrotron_params[0],
-            collisional_physics=collisions[0].get_as_pypicongpu(),
+            synchrotron_params=synchrotron_params,
+            collisional_physics=collisions.get_as_pypicongpu(),
         )
 
     def _get_base_density(self) -> float:

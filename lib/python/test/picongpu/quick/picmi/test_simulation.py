@@ -16,8 +16,11 @@ from unittest import TestCase
 import pytest
 import typeguard
 from picongpu import picmi
+from picongpu.picmi.interaction import Collision, CollisionalPhysicsSetup, ConstLogCollision, Synchrotron
 from picongpu.picmi.interaction.ionization.fieldionization import ADK, ADKVariant
 from picongpu.pypicongpu import customuserinput, species
+from picongpu.pypicongpu.collisions import CollisionNumericsConfig
+from picongpu.pypicongpu.species.constant.synchrotron import SynchrotronParams
 
 
 def get_grid(delta_x: float, delta_y: float, delta_z: float, n: int):
@@ -389,6 +392,87 @@ class TestPicmiSimulation(TestCase):
             if isinstance(op, species.operation.SetChargeState) and op.species.name == "Hydrogen":
                 assert op.bound_electrons == 0
             # other ops (position...): ignore
+
+    def test_interaction_defaults(self):
+        """without interactions, default synchrotron parameters and an empty collisional physics setup are used"""
+        pypic_sim = self.sim.get_as_pypicongpu()
+        assert pypic_sim.synchrotron_params == SynchrotronParams()
+        assert pypic_sim.collisional_physics.collisions == []
+        assert pypic_sim.collisional_physics.screening_species == []
+        assert pypic_sim.collisional_physics.numerics_config == CollisionNumericsConfig()
+
+    def test_interaction_synchrotron(self):
+        """synchrotron parameters are forwarded; duplicates with equal parameters are tolerated"""
+        e = picmi.Species(name="e", particle_type="electron")
+        photon = picmi.Species(name="photon", particle_type="photon")
+        params = SynchrotronParams(min_energy=42.0, electron_recoil=False)
+
+        sim = self.__get_sim()
+        sim.add_species(e, None)
+        sim.add_species(photon, None)
+        sim.picongpu_interaction = [
+            Synchrotron(electron_species=e, photon_species=photon, synchrotron_parameters=params) for _ in range(2)
+        ]
+
+        pypic_sim = sim.get_as_pypicongpu()
+        assert pypic_sim.synchrotron_params == params
+
+    def test_interaction_synchrotron_conflicting_params(self):
+        """contradicting synchrotron parameters are rejected"""
+        e = picmi.Species(name="e", particle_type="electron")
+        photon = picmi.Species(name="photon", particle_type="photon")
+
+        sim = self.__get_sim()
+        sim.add_species(e, None)
+        sim.add_species(photon, None)
+        sim.picongpu_interaction = [
+            Synchrotron(
+                electron_species=e,
+                photon_species=photon,
+                synchrotron_parameters=SynchrotronParams(min_energy=1.0),
+            ),
+            Synchrotron(
+                electron_species=e,
+                photon_species=photon,
+                synchrotron_parameters=SynchrotronParams(min_energy=2.0),
+            ),
+        ]
+
+        with pytest.raises(ValueError, match="multiple times with different arguments"):
+            sim.get_as_pypicongpu()
+
+    def test_interaction_collisions_merged_into_setup(self):
+        """bare collisions are merged into a single collisional physics setup"""
+        e = picmi.Species(name="e", particle_type="electron")
+        sim = picmi.Simulation(
+            time_step_size=17,
+            max_steps=4,
+            solver=picmi.ElectromagneticSolver(method="Yee", grid=get_grid(1, 1, 1, 32)),
+            picongpu_interaction=[Collision(species_pairs=[(e, e)], functor=ConstLogCollision(coulomb_log=2.0))],
+        )
+        sim.add_species(e, None)
+
+        pypic_sim = sim.get_as_pypicongpu()
+        assert pypic_sim.synchrotron_params == SynchrotronParams()
+        assert [collision.functor.coulomb_log for collision in pypic_sim.collisional_physics.collisions] == [2.0]
+
+    def test_interaction_collisional_physics_setup_forwarded(self):
+        """an explicitly given collisional physics setup is forwarded"""
+        e = picmi.Species(name="e", particle_type="electron")
+        setup = CollisionalPhysicsSetup(
+            collisions=[Collision(species_pairs=[(e, e)], functor=ConstLogCollision(coulomb_log=7.0))]
+        )
+        sim = picmi.Simulation(
+            time_step_size=17,
+            max_steps=4,
+            solver=picmi.ElectromagneticSolver(method="Yee", grid=get_grid(1, 1, 1, 32)),
+            picongpu_interaction=[setup],
+        )
+        sim.add_species(e, None)
+
+        pypic_sim = sim.get_as_pypicongpu()
+        assert pypic_sim.collisional_physics.numerics_config == CollisionNumericsConfig()
+        assert [collision.functor.coulomb_log for collision in pypic_sim.collisional_physics.collisions] == [7.0]
 
     def test_write_input_file(self):
         """sanity check picmi upstream: write input file"""
