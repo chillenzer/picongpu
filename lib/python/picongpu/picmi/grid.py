@@ -127,9 +127,7 @@ class Cartesian3DGrid(picmistandard.PICMI_Cartesian3DGrid):
                     (cells[dim] // self.picongpu_n_gpus[dim]) // self.picongpu_super_cell_size[dim]
                 ) * self.picongpu_n_gpus[dim] * self.picongpu_super_cell_size[dim] != cells[dim]:
                     raise ValueError(
-                        "GPU- and/or super-cell-distribution in {} dimension does not match grid size".format(
-                            dim_name[dim]
-                        )
+                        f"GPU- and/or super-cell-distribution in {dim_name[dim]} dimension does not match grid size"
                     )
             else:
                 # any returns true if there is at least one non zero (True) element
