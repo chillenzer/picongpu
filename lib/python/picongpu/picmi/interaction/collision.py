@@ -41,7 +41,7 @@ class Collision(BaseModel):
 
     def get_as_pypicongpu(self):
         return PyPIConGPUCollision(
-            species_pairs=map(lambda x: map(lambda y: y.get_as_pypicongpu(), x), self.species_pairs),
+            species_pairs=((y.get_as_pypicongpu() for y in x) for x in self.species_pairs),
             functor=self.functor,
         )
 
@@ -55,7 +55,7 @@ class CollisionalPhysicsSetup(BaseModel):
         if len(args) == 1:
             if "collisions" not in kwargs:
                 kwargs["collisions"] = args[0]
-                args = tuple()
+                args = ()
             else:
                 raise ValueError(f"Duplicated collisions argument given: You gave {args=} and {kwargs=}.")
         return super().__init__(*args, **kwargs)

@@ -60,7 +60,7 @@ class Collision(BaseModel):
 
     @computed_field
     def species(self) -> list[Species]:
-        return unique(sum(self.species_pairs, tuple()))
+        return unique(sum(self.species_pairs, ()))
 
     @computed_field
     def has_filters(self) -> bool:

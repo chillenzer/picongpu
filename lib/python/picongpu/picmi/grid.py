@@ -26,9 +26,9 @@ PICONGPU_BOUNDARY_CONDITION_BY_PICMI_ID = {
 
 def _normalise_n_gpus(n_gpus) -> tuple[int, int, int]:
     picongpu_n_gpus = n_gpus
-    n_gpus = tuple(n_gpus or tuple([1, 1, 1]))
+    n_gpus = tuple(n_gpus or (1, 1, 1))
     if len(n_gpus) == 1:
-        n_gpus = tuple([1, n_gpus[0], 1])
+        n_gpus = (1, n_gpus[0], 1)
 
     if len(n_gpus) != 3:
         raise ValueError(
@@ -36,7 +36,7 @@ def _normalise_n_gpus(n_gpus) -> tuple[int, int, int]:
             f"You gave {picongpu_n_gpus} and we interpreted this as {n_gpus=}."
         )
 
-    if any(map(lambda x: x <= 0, n_gpus)):
+    if any(x <= 0 for x in n_gpus):
         raise ValueError(
             f"Number of gpus must be positive integer(s). "
             f"You gave {picongpu_n_gpus=} and we interpreted this as {n_gpus=}."
@@ -131,7 +131,7 @@ class Cartesian3DGrid(picmistandard.PICMI_Cartesian3DGrid):
                     )
             else:
                 # any returns true if there is at least one non zero (True) element
-                if any([x % self.picongpu_super_cell_size[dim] for x in self.picongpu_grid_dist[dim]]):
+                if any(x % self.picongpu_super_cell_size[dim] for x in self.picongpu_grid_dist[dim]):
                     raise ValueError(
                         f"grid distribution in {dim_name[dim]} dimension must be multiple of super cell size"
                     )
