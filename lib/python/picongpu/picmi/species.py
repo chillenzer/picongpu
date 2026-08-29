@@ -133,7 +133,8 @@ class Species(PICMI_Species):
         if value is None:
             if values["particle_type"] is None:
                 raise ValueError(
-                    "Can't come up with a proper name for your species because neither name nor particle type are given."
+                    "Can't come up with a proper name for your species because neither name nor "
+                    "particle type are given."
                 )
             value = values["particle_type"]
         return value

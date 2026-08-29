@@ -53,7 +53,8 @@ class Collision(BaseModel):
         ]
         if invalid_pairs:
             raise ValueError(
-                f"Intra-species collisions with differently filtered species are not supported by PIConGPU. You gave: {invalid_pairs=}."
+                f"Intra-species collisions with differently filtered species are not supported by PIConGPU. "
+                f"You gave: {invalid_pairs=}."
             )
         return pairs
 
