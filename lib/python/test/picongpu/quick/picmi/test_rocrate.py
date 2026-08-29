@@ -9,7 +9,7 @@ from operator import itemgetter
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from pytest import fixture, mark
+import pytest
 from rocrate.rocrate import ROCrate
 from rocrate_validator.services import validate
 
@@ -17,7 +17,7 @@ from picongpu._version import __version__
 from picongpu.picmi import Cartesian3DGrid, ElectromagneticSolver, Simulation
 
 
-@fixture
+@pytest.fixture
 def sim():
     number_of_cells = 32
     cell_size = 1
@@ -38,14 +38,14 @@ def sim():
     )
 
 
-@fixture
+@pytest.fixture
 def setup_dir(sim):
     with TemporaryDirectory() as d:
         sim.write_input_file(d, exist_ok=True)
         yield Path(d)
 
 
-@fixture
+@pytest.fixture
 def crate(setup_dir):
     return ROCrate(setup_dir)
 
@@ -57,7 +57,7 @@ def test_all_files_tracked_by_rocrate(setup_dir, crate):
     assert set(existing).symmetric_difference(tracked) == {Path(setup_dir) / "ro-crate-metadata.json"}
 
 
-@mark.xfail(
+@pytest.mark.xfail(
     reason="Undecided whether we should set it up like this. "
     "I'm just temporarily leaving it as a reminder "
     "and to spare the trouble to write the test again if we decide positively."
@@ -94,12 +94,12 @@ def test_rocrate_indicates_the_software_it_has_been_produced_with(crate):
     assert picongpu_software in map(itemgetter("@id"), crate.root_dataset.properties()["instrument"])
 
 
-@mark.xfail(reason="Not implemented yet.")
+@pytest.mark.xfail(reason="Not implemented yet.")
 def test_adds_default_information_to_datasets(crate):
     # explicitly instantiating a list here for pytest to provide better assertion error messages
     assert all("description" in dataset.properties() for dataset in crate.get_by_type("Dataset"))
 
 
-@mark.xfail(reason="Decided to disable license until we have a proper interface.")
+@pytest.mark.xfail(reason="Decided to disable license until we have a proper interface.")
 def test_validate_rocrate(setup_dir):
     assert not validate(settings={"rocrate_uri": setup_dir, "requirement_severity": "REQUIRED"}).get_issues()
