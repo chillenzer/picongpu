@@ -9,6 +9,8 @@ from functools import reduce
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from pytest import fixture
+
 from picongpu import rc_params
 from picongpu._rc_params import RCParams
 from picongpu.pypicongpu.runner import (
@@ -18,7 +20,6 @@ from picongpu.pypicongpu.runner import (
     generate_bare_profile_as_in,
 )
 from picongpu.pypicongpu.util import UnpackChain
-from pytest import fixture
 
 
 @fixture
