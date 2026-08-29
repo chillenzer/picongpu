@@ -84,6 +84,34 @@ class Collision(BaseModel):
     functor: CollisionFunctor
     """the collision functor (constant or dynamic Coulomb logarithm)"""
 
+    @field_validator("species_pairs", mode="before")
+    @classmethod
+    def _parse_species_pairs(cls, pairs):
+        # accept the serialised form (a list of {"species_lhs", "species_rhs"}
+        # dicts) in addition to the native list-of-pairs form, so that
+        # model_dump(mode="json") output can be validated again
+        # (round-trip safety); the dicts are re-validated as
+        # (Species | FilteredSpecies) by the field type
+        if isinstance(pairs, list) and all(
+            isinstance(pair, dict) and set(pair) >= {"species_lhs", "species_rhs"} for pair in pairs
+        ):
+            return [(pair["species_lhs"], pair["species_rhs"]) for pair in pairs]
+        return pairs
+
+    @field_validator("functor", mode="before")
+    @classmethod
+    def _parse_functor(cls, value):
+        # accept the serialised form (a dict carrying the type_constlog /
+        # type_dynamiclog discriminator) in addition to a CollisionFunctor
+        # instance, so that model_dump(mode="json") output can be validated
+        # again (round-trip safety)
+        if isinstance(value, dict):
+            if value.get("type_constlog"):
+                return ConstLogCollision(coulomb_log=value["data"]["coulomb_log"])
+            if value.get("type_dynamiclog"):
+                return DynamicLogCollision()
+        return value
+
     @field_validator("species_pairs", mode="after")
     @classmethod
     def _validate_species_pairs(cls, pairs):
@@ -113,7 +141,14 @@ class Collision(BaseModel):
 
     @field_serializer("functor")
     def _serialize_functor(self, value):
-        return value.get_rendering_context()
+        # The rendered form carries the discriminator (type_constlog /
+        # type_dynamiclog) plus, for the constant-log functor, the parameters
+        # nested under "data" (see collision.param.mustache); the inverse
+        # mapping is _parse_functor (round-trip safety).
+        dumped = value.model_dump(mode="json")
+        if isinstance(value, ConstLogCollision):
+            return {"type_constlog": True, "data": {"coulomb_log": dumped["coulomb_log"]}}
+        return {"type_dynamiclog": True}
 
 
 class CollisionNumericsConfig(BaseModel):
