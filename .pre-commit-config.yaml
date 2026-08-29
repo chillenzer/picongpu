@@ -92,3 +92,22 @@ repos:
       - id: pyproject-fmt
         # The default is 3.13, which would strip the 3.14 classifier.
         args: ["--max-supported-python", "3.14"]
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.9.1
+    hooks:
+      # Strip outputs, execution counts and normalize cell ids of Jupyter
+      # notebooks so they stay clean in git.
+      # Metadata is intentionally NOT stripped: the example notebooks only
+      # carry the standard `kernelspec` and `language_info` metadata, which
+      # other tools need to open the notebooks with the right kernel.
+      - id: nbstripout
+        types: [jupyter]
+  - repo: local
+    hooks:
+      - id: check_notebook_format
+        name: check_notebook_format
+        description: Validate Jupyter notebooks against the nbformat schema of their declared version
+        entry: python share/ci/check_notebook_format.py
+        language: python
+        additional_dependencies: ['nbformat==5.11.1']
+        types: [jupyter]
