@@ -99,11 +99,19 @@ repos:
   - repo: https://github.com/kynan/nbstripout
     rev: 0.9.1
     hooks:
-      # Strip outputs, execution counts and normalize cell ids of Jupyter
-      # notebooks so they stay clean in git.
-      # Metadata is intentionally NOT stripped: the example notebooks only
-      # carry the standard `kernelspec` and `language_info` metadata, which
-      # other tools need to open the notebooks with the right kernel.
+      # Strip outputs, execution counts and nbstripout's default metadata
+      # keys (metadata.signature, metadata.widgets and the cell metadata
+      # keys collapsed, ExecuteTime, execution, heading_collapsed, hidden,
+      # scrolled), and normalize cell ids, so notebooks stay clean in git.
+      # Top-level notebook keys and other metadata entries are not stripped:
+      # the standard `kernelspec`/`language_info` entries that tools need to
+      # open the notebook with the right kernel stay, and so would
+      # editor/execution leftovers such as `metadata.vscode` or
+      # `metadata.papermill` if a tool ever added them (a top-level
+      # `orig_nbformat` is additionally rejected by
+      # check_notebook_format). Decision: keep the default key set for now -
+      # the committed example notebooks carry none of those leftover keys;
+      # revisit with --extra-keys if papermill/nbval notebook CI lands.
       - id: nbstripout
         types: [jupyter]
   - repo: local
@@ -113,5 +121,5 @@ repos:
         description: Validate Jupyter notebooks against the nbformat schema of their declared version
         entry: python share/ci/check_notebook_format.py
         language: python
-        additional_dependencies: ['nbformat==5.11.1']
+        additional_dependencies: ['nbformat == 5.11.1']
         types: [jupyter]

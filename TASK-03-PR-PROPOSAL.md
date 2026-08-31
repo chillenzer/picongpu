@@ -19,10 +19,10 @@ Two new pre-commit hooks for Jupyter notebooks (`.ipynb`), appended to the end
 of `.pre-commit-config.yaml`:
 
 1. **`nbstripout`** (repo `kynan/nbstripout`, rev `0.9.1`) - strips outputs,
-   execution counts and normalizes cell ids on commit, so no execution state
-   ever lands in git.
+   execution counts and its default set of metadata keys on commit, and
+   normalizes cell ids, so no outputs or execution counts ever land in git.
 2. **`check_notebook_format`** (local hook, new script
-   `share/ci/check_notebook_format.py`, pinned `nbformat==5.11.1` in
+   `share/ci/check_notebook_format.py`, pinned `nbformat == 5.11.1` in
    `additional_dependencies`) - validates every notebook against the nbformat
    schema of the version it declares.
 
@@ -51,19 +51,27 @@ verified against the current hook repos and are **no longer valid**:
   `--strip-execution` flag no longer exists - stripping execution counts is
   the *default* behavior (disable via `--keep-count`). Hence no `args` are
   passed.
-- **Metadata is intentionally not stripped.** The example notebooks only
-  carry the standard `kernelspec` and `language_info` metadata, which tools
-  need to open the notebooks with the right kernel. Modern nbstripout does not
-  strip metadata by default anyway (the old `--strip-metadata` flag is gone).
+- **Metadata: keep nbstripout's default key set.** nbstripout 0.9.1 strips
+  a fixed set of metadata keys by default (`metadata.signature`,
+  `metadata.widgets`, and the cell metadata keys `collapsed`, `ExecuteTime`,
+  `execution`, `heading_collapsed`, `hidden`, `scrolled`), which covers the
+  noisy JupyterLab keys. Top-level notebook keys and other metadata entries
+  (e.g. `metadata.vscode`, `metadata.papermill`, `cell.metadata.editable`)
+  are left untouched, as are the standard `kernelspec`/`language_info`
+  entries that tools need to open the notebook with the right kernel (a
+  top-level `orig_nbformat` is additionally rejected by
+  `check_notebook_format`). The example notebooks carry none of the leftover
+  keys today, so no `--extra-keys` is added; revisit if papermill/nbval
+  notebook CI lands.
 - `check-jsonschema` no longer supports a `jsonschema_store` option, and the
   JSON Schema Store no longer hosts a `jupyter-notebook` schema. The
   `pre-commit-ci/hooks` repo referenced for an `nbformat` hook does not exist.
   The `nbformat` CLI (`nbformat --validate`) was also removed from the
   `nbformat` package.
 - Therefore validation is implemented as a small local hook that calls the
-  still-supported `nbformat.validate` Python API. This follows the repo's
-  existing pattern for local check hooks (`share/ci/check_cpp_code_style.sh`)
-  and pins `nbformat==5.11.1` for reproducibility. It validates each notebook
+   still-supported `nbformat.validate` Python API. This follows the repo's
+   existing pattern for local check hooks (`share/ci/check_cpp_code_style.sh`)
+   and pins `nbformat == 5.11.1` for reproducibility. It validates each notebook
   against the schema of its *declared* `nbformat`/`nbformat_minor` (the repo
   contains both a 4.4 and a 4.5 notebook), which a single fixed schema file
   could not do.
@@ -75,9 +83,10 @@ verified against the current hook repos and are **no longer valid**:
 - Dirty-notebook check: adding an output + execution count + `scrolled`
   metadata to a notebook and running the hooks on it - `nbstripout`
   auto-strips it (hook reports "files were modified", i.e. the commit would be
-  blocked/autofixed) and `check_notebook_format` accepts the cleaned result.
-  A structurally invalid notebook (bad cell id / non-JSON) is rejected with a
-  non-zero exit.
+   blocked/autofixed) and `check_notebook_format` accepts the cleaned result.
+- A structurally invalid notebook (missing or duplicate cell ids, invalid
+  cell id pattern, invalid cell, non-JSON) is rejected with a non-zero exit;
+  these cases are covered by `share/ci/check_notebook_format_selftest.py`.
 - Notebooks remain valid: `nbformat.validate` passes on both; code cells still
   pass the existing ruff lint + format hooks.
 - Test gate unchanged: `lib/python/test/picongpu` quick suite reports
