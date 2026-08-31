@@ -17,14 +17,26 @@ from nbformat.warnings import DuplicateCellId, MissingIDFieldWarning
 # reject them here.
 SOFT_WARNINGS = (MissingIDFieldWarning, DuplicateCellId)
 
+# jsonschema error messages embed the whole offending instance, which
+# can be many KB for a large cell; keep the first (bounded) line only
+# so bad cells do not dump their full source into CI logs.
+MAX_MESSAGE_LEN = 200
+
+
+def shorten(text):
+    line = text.strip().splitlines()[0] if text.strip() else str(text)
+    if len(line) > MAX_MESSAGE_LEN:
+        line = line[:MAX_MESSAGE_LEN].rstrip() + "..."
+    return line
+
 
 def main():
     exit_code = 0
     for filename in sys.argv[1:]:
         try:
             notebook = nbformat.read(filename, as_version=nbformat.NO_CONVERT)
-        except Exception as error:  # noqa: BLE001
-            print(f"{filename}: {error}", file=sys.stderr)
+        except Exception as error:
+            print(f"{filename}: not a valid notebook: {error}", file=sys.stderr)
             exit_code = 1
             continue
 
@@ -32,8 +44,11 @@ def main():
             warnings.simplefilter("always")
             try:
                 nbformat.validate(notebook)
-            except Exception as error:  # noqa: BLE001
-                print(f"{filename}: {error}", file=sys.stderr)
+            except nbformat.ValidationError as error:
+                print(f"{filename}: invalid notebook: {shorten(str(error))}", file=sys.stderr)
+                exit_code = 1
+            except Exception as error:
+                print(f"{filename}: not a valid notebook: {error}", file=sys.stderr)
                 exit_code = 1
         for warning in caught:
             if issubclass(warning.category, SOFT_WARNINGS):
