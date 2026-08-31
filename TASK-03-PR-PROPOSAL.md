@@ -7,8 +7,10 @@
 ## Merge order
 
 This PR touches `.pre-commit-config.yaml` and **should be merged before
-`task-08-ruff-all`**. Both modify the same file; this PR only *appends* new
-hook entries (ruff entries are left byte-for-byte unchanged) so the merge is
+`task-08-ruff-all`**. Both modify the same file; this PR *appends* new hook
+entries at the end (ruff entries are left byte-for-byte unchanged) and adds a
+`require-ascii` exclusion for the task artifact documents (`^TASK-.*\.md$`,
+the non-ASCII review/response documents at the repo root), so the merge is
 expected to be clean, but landing this first keeps task 08's diff minimal.
 
 ## What
