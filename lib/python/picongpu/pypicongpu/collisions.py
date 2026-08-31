@@ -6,7 +6,7 @@ License: GPLv3+
 """
 
 from itertools import chain
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -132,14 +132,17 @@ class Collision(BaseModel):
     def has_filters(self) -> bool:
         return any(isinstance(s, FilteredSpecies) for p in self.species_pairs for s in p)
 
-    @field_serializer("species_pairs", mode="plain")
+    @field_serializer("species_pairs", mode="plain", return_type=list[dict[str, Any]])
     def _species_pairs_serializer(self, value):
+        # the return_type declaration is required for the rendering-context
+        # schema check (model_json_schema(mode="serialization")) to derive the
+        # list-of-dicts shape instead of the field type's list-of-pairs shape
         return [
             {"species_lhs": pair[0].model_dump(mode="json"), "species_rhs": pair[1].model_dump(mode="json")}
             for pair in value
         ]
 
-    @field_serializer("functor")
+    @field_serializer("functor", return_type=dict[str, Any])
     def _serialize_functor(self, value):
         # The rendered form carries the discriminator (type_constlog /
         # type_dynamiclog) plus, for the constant-log functor, the parameters
