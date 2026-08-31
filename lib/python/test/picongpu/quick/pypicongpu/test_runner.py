@@ -89,3 +89,17 @@ def test_picbuild_and_tbg_flags_are_disjoint_enough():
             for cls in (PicBuildFlags, TBGFlags)
         )
     ) == {"f", "force"}
+
+
+def test_picbuild_jobs_default_comes_from_picongpurc():
+    # Without any picongpurc setting, jobs falls back to the hard default.
+    assert PicBuildFlags().jobs == 4
+    # ...and the `j` alias still overrides it.
+    assert PicBuildFlags(j=3).jobs == 3
+    # When picongpurc provides `build_jobs`, it becomes the default ...
+    with rc_params.set_temporarily(build_jobs=8):
+        assert PicBuildFlags().jobs == 8
+        # ...but an explicit argument takes precedence over picongpurc.
+        assert PicBuildFlags(j=2).jobs == 2
+    # and the setting is restored afterwards.
+    assert PicBuildFlags().jobs == 4
