@@ -11,6 +11,7 @@ from .ionizationcurrent import IonizationCurrent
 from .....pypicongpu.species.constant.ionizationcurrent import IonizationCurrent as PypicongpuIonizationCurrent
 from .....pypicongpu.species.constant.ionizationcurrent import None_
 
+
 class FieldIonization(GroundStateIonizationModel):
     """common interface of all field ionization models"""
 
