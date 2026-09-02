@@ -112,10 +112,43 @@ repos:
       # check_notebook_format). Decision: keep the default key set for now -
       # the committed example notebooks carry none of those leftover keys;
       # revisit with --extra-keys if papermill/nbval notebook CI lands.
+      #
+      # What it does / does NOT do (review Q2): nbstripout is a commit-time
+      # filter. The hook runs `nbstripout` on the notebooks being committed and
+      # rewrites them in place; if a file is changed the commit is blocked and
+      # the cleaned copy must be re-staged, so the committed blob carries no
+      # output. It does NOT rewrite already-committed history: output that is
+      # already in an earlier commit stays in history until that file is
+      # committed again (a history rewrite is out of scope for a pre-commit
+      # hook). The one-time reformat (803d142a4) already removed the output
+      # that had previously been committed in preparingInsightData_example.
       - id: nbstripout
         types: [jupyter]
   - repo: local
     hooks:
+      # Why a local hook (review Q1 - established hooks were researched first):
+      # The notebook functionality splits across established hooks that already
+      # live in this file - output/execution-count/metadata stripping AND cell-
+      # id normalization are the established `nbstripout` hook above, and
+      # linting/formatting of code cells is the established `ruff` /
+      # `ruff-format` hooks (types_or jupyter). This hook does only what no
+      # established hook can: validate each notebook against the nbformat
+      # schema of its DECLARED minor version, and hard-fail nbformat's soft
+      # auto-repair warnings (missing/duplicate cell id).
+      #
+      # Why it cannot be an established hook:
+      #   * check-jsonschema (python-jsonschema/check-jsonschema) has no
+      #     jupyter/nbformat schema in its store, and it selects the schema by
+      #     filename/extension - it cannot dispatch on the nbformat_minor value
+      #     INSIDE the file. Pointed at the official generic nbformat.v4 schema
+      #     (which requires nbformat_minor>=5 and a cell id) it passes the 4.5
+      #     example but rejects this repo's 4.4 example.
+      #   * The repo holds both a 4.4 (no cell ids) and a 4.5 (ids required and
+      #     unique) notebook, so a single fixed schema file cannot validate both.
+      #   * "duplicate cell id" is not expressible in JSON Schema at all.
+      # The entry uses the pinned nbformat package's bundled per-minor schemas
+      # (no network, no vendored schema file). jupyter/nbformat ships no
+      # pre-commit hook, and no maintained hook wraps nbformat.validate.
       - id: check_notebook_format
         name: check_notebook_format
         description: Validate Jupyter notebooks against the nbformat schema of their declared version
