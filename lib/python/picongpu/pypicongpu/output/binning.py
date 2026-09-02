@@ -6,7 +6,6 @@ License: GPLv3+
 """
 
 import json
-import re
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator, model_validator
@@ -17,6 +16,7 @@ from picongpu.pypicongpu.particle_functor.particle_functor import ParticleFuncto
 from picongpu.pypicongpu.particle_functor.translate_to_cpp_type import translate_from_cpp_type
 from picongpu.pypicongpu.rendering.renderedobject import RenderedObject
 from picongpu.pypicongpu.species import Species
+from picongpu.pypicongpu.validation import validate_cpp_identifier
 
 
 class BinSpec(RenderedObject, BaseModel):
@@ -95,12 +95,9 @@ class BinningAxis(RenderedObject, BaseModel):
     @field_validator("axis_name")
     @classmethod
     def _validate_axis_name(cls, name):
-        # The name renders into the C++ variable `axis_{name}`, so it must be
-        # a valid C++ identifier (the `axis_` prefix makes even a leading
-        # digit acceptable, hence the [A-Za-z0-9_]+ pattern).
-        if not re.fullmatch(r"^[A-Za-z0-9_]+$", name):
-            raise ValueError("axis names must be c++ compatible ([A-Za-z0-9_]+)")
-        return name
+        # The name renders into the C++ variable `axis_{name}`, so the
+        # `axis_` prefix makes even a leading digit acceptable.
+        return validate_cpp_identifier(name, field="axis_name", prefix="axis_")
 
 
 class Binning(BaseModel):
@@ -158,8 +155,5 @@ class Binning(BaseModel):
     @field_validator("binner_name")
     @classmethod
     def _validate_binner_name(cls, name):
-        # The name renders into the C++ function `{name}(BinningCreator&)`,
-        # so it must be a valid C++ identifier.
-        if not re.fullmatch(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
-            raise ValueError("binner names must be c++ identifiers ([A-Za-z_][A-Za-z0-9_]*)")
-        return name
+        # The name renders into the C++ function `{name}(BinningCreator&)`.
+        return validate_cpp_identifier(name, field="binner_name")
