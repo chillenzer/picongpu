@@ -108,10 +108,10 @@ repos:
       # open the notebook with the right kernel stay, and so would
       # editor/execution leftovers such as `metadata.vscode` or
       # `metadata.papermill` if a tool ever added them (a top-level
-      # `orig_nbformat` is additionally rejected by
-      # check_notebook_format). Decision: keep the default key set for now -
-      # the committed example notebooks carry none of those leftover keys;
-      # revisit with --extra-keys if papermill/nbval notebook CI lands.
+      # `orig_nbformat` is likewise left as-is). Decision: keep the default
+      # key set for now - the committed example notebooks carry none of those
+      # leftover keys; revisit with --extra-keys if papermill/nbval notebook
+      # CI lands.
       #
       # What it does / does NOT do (review Q2): nbstripout is a commit-time
       # filter. The hook runs `nbstripout` on the notebooks being committed and
@@ -124,35 +124,25 @@ repos:
       # that had previously been committed in preparingInsightData_example.
       - id: nbstripout
         types: [jupyter]
-  - repo: local
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.38.0
     hooks:
-      # Why a local hook (review Q1 - established hooks were researched first):
-      # The notebook functionality splits across established hooks that already
-      # live in this file - output/execution-count/metadata stripping AND cell-
-      # id normalization are the established `nbstripout` hook above, and
-      # linting/formatting of code cells is the established `ruff` /
-      # `ruff-format` hooks (types_or jupyter). This hook does only what no
-      # established hook can: validate each notebook against the nbformat
-      # schema of its DECLARED minor version, and hard-fail nbformat's soft
-      # auto-repair warnings (missing/duplicate cell id).
+      # Structural validation of every notebook against the official nbformat
+      # v4 schema (review Q1). Both example notebooks are nbformat 4.5
+      # (nbformat_minor == 5, every cell carries a unique `id`), so one fixed
+      # schema validates them all: the official nbformat.v4 schema requires
+      # nbformat_minor >= 5 and an `id` on every cell - exactly the 4.5
+      # contract. It is fetched from the pinned nbformat 5.11.1 tag, the same
+      # version the notebooks target (no vendored schema file in the repo).
       #
-      # Why it cannot be an established hook:
-      #   * check-jsonschema (python-jsonschema/check-jsonschema) has no
-      #     jupyter/nbformat schema in its store, and it selects the schema by
-      #     filename/extension - it cannot dispatch on the nbformat_minor value
-      #     INSIDE the file. Pointed at the official generic nbformat.v4 schema
-      #     (which requires nbformat_minor>=5 and a cell id) it passes the 4.5
-      #     example but rejects this repo's 4.4 example.
-      #   * The repo holds both a 4.4 (no cell ids) and a 4.5 (ids required and
-      #     unique) notebook, so a single fixed schema file cannot validate both.
-      #   * "duplicate cell id" is not expressible in JSON Schema at all.
-      # The entry uses the pinned nbformat package's bundled per-minor schemas
-      # (no network, no vendored schema file). jupyter/nbformat ships no
-      # pre-commit hook, and no maintained hook wraps nbformat.validate.
-      - id: check_notebook_format
-        name: check_notebook_format
-        description: Validate Jupyter notebooks against the nbformat schema of their declared version
-        entry: python share/ci/check_notebook_format.py
-        language: python
-        additional_dependencies: ['nbformat == 5.11.1']
+      # Accepted trade-off (raised with the reviewer): unlike the previous
+      # local nbformat hook, duplicate cell ids are NOT rejected here - that
+      # check is not expressible in JSON Schema. In practice it cannot bite:
+      # nbstripout (above) rewrites every cell id to a unique sequential value
+      # on each commit, so a committed notebook always carries unique ids.
+      - id: check-jsonschema
+        name: check notebook against the nbformat v4 schema
+        files: \.ipynb$
         types: [jupyter]
+        args:
+          - --schemafile=https://raw.githubusercontent.com/jupyter/nbformat/v5.11.1/nbformat/v4/nbformat.v4.schema.json
