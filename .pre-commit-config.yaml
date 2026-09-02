@@ -14,6 +14,15 @@ repos:
       - id: no-commit-to-branch
         args: [-b, dev]
       - id: check-merge-conflict
+      # Guardrail: block accidental commit of giant data blobs. Threshold is 1 MiB
+      # because the largest legitimate non-thirdParty asset (docs media /
+      # reference data) is ~0.7 MiB; thirdParty is already excluded above.
+      - id: check-added-large-files
+        args: [--maxkb, "1024"]
+      # Guardrail: never let a private key / credential reach the repo.
+      - id: detect-private-key
+      # Guardrail: the docs tree uses symlinks; fail if any dangle.
+      - id: check-symlinks
       - id: trailing-whitespace
         exclude_types: [markdown, rst]
       - id: end-of-file-fixer
