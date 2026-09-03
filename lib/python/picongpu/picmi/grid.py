@@ -6,6 +6,7 @@ License: GPLv3+
 """
 
 from typing import Annotated
+
 import picmistandard
 from pydantic import AfterValidator, Field, computed_field
 
