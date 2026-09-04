@@ -1,0 +1,113 @@
+# PR Proposal - task 03: Add jupyter-related pre-commit hooks
+
+## Proposed title
+
+`Add jupyter-related pre-commit hooks (nbstripout + nbformat validation)`
+
+## Merge order
+
+This PR touches `.pre-commit-config.yaml` and **should be merged before
+`task-08-ruff-all`**. Both modify the same file; this PR *appends* new hook
+entries at the end (ruff entries are left byte-for-byte unchanged) and adds a
+`require-ascii` exclusion for the task artifact documents (`^TASK-.*\.md$`,
+the non-ASCII review/response documents at the repo root), so the merge is
+expected to be clean, but landing this first keeps task 08's diff minimal.
+
+## What
+
+Two new pre-commit hooks for Jupyter notebooks (`.ipynb`), appended to the end
+of `.pre-commit-config.yaml`:
+
+1. **`nbstripout`** (repo `kynan/nbstripout`, rev `0.9.1`) - strips outputs,
+   execution counts and its default set of metadata keys on commit, and
+   normalizes cell ids, so no outputs or execution counts ever land in git.
+2. **`check_notebook_format`** (local hook, new script
+   `share/ci/check_notebook_format.py`, pinned `nbformat == 5.11.1` in
+   `additional_dependencies`) - validates every notebook against the nbformat
+   schema of the version it declares.
+
+Plus the one-time, hook-driven reformatting of
+`lib/python/picongpu/extra/input/preparingInsightData_example.ipynb` that the
+hooks produce (see below).
+
+## Why
+
+The two example notebooks under `lib/python/picongpu/extra/input/` were not
+protected by any pre-commit hook. Without these hooks, a contributor who
+executes a notebook and commits it would push outputs, execution counts and
+regenerated cell ids, producing noisy diffs. Linting of notebook code cells
+was already covered by the existing ruff hooks (`types_or: [python, pyi,
+jupyter]`), so no nbqa hook is added.
+
+### Hook choices - deviating from the task file's suggested recipes
+
+The task file suggested `nbstripout` with `id: strip-notebook` +
+`--strip-execution` and `check-jsonschema` with `jsonschema_store:
+jupyter-notebook` (or `pre-commit-ci/hooks` `nbformat`). All of those were
+verified against the current hook repos and are **no longer valid**:
+
+- The nbstripout hook repo is `kynan/nbstripout` (the `nbdev/nbstripout`
+  reference 404s). The current hook id is **`nbstripout`**, and the
+  `--strip-execution` flag no longer exists - stripping execution counts is
+  the *default* behavior (disable via `--keep-count`). Hence no `args` are
+  passed.
+- **Metadata: keep nbstripout's default key set.** nbstripout 0.9.1 strips
+  a fixed set of metadata keys by default (`metadata.signature`,
+  `metadata.widgets`, and the cell metadata keys `collapsed`, `ExecuteTime`,
+  `execution`, `heading_collapsed`, `hidden`, `scrolled`), which covers the
+  noisy JupyterLab keys. Top-level notebook keys and other metadata entries
+  (e.g. `metadata.vscode`, `metadata.papermill`, `cell.metadata.editable`)
+  are left untouched, as are the standard `kernelspec`/`language_info`
+  entries that tools need to open the notebook with the right kernel (a
+  top-level `orig_nbformat` is additionally rejected by
+  `check_notebook_format`). The example notebooks carry none of the leftover
+  keys today, so no `--extra-keys` is added; revisit if papermill/nbval
+  notebook CI lands.
+- `check-jsonschema` no longer supports a `jsonschema_store` option, and the
+  JSON Schema Store no longer hosts a `jupyter-notebook` schema. The
+  `pre-commit-ci/hooks` repo referenced for an `nbformat` hook does not exist.
+  The `nbformat` CLI (`nbformat --validate`) was also removed from the
+  `nbformat` package.
+- Therefore validation is implemented as a small local hook that calls the
+   still-supported `nbformat.validate` Python API. This follows the repo's
+   existing pattern for local check hooks (`share/ci/check_cpp_code_style.sh`)
+   and pins `nbformat == 5.11.1` for reproducibility. It validates each notebook
+  against the schema of its *declared* `nbformat`/`nbformat_minor` (the repo
+  contains both a 4.4 and a 4.5 notebook), which a single fixed schema file
+  could not do.
+
+## Verification
+
+- `pre-commit run --all-files` exits 0 with every hook `Passed`, including
+  the new `nbstripout` and `check_notebook_format`.
+- Dirty-notebook check: adding an output + execution count + `scrolled`
+  metadata to a notebook and running the hooks on it - `nbstripout`
+  auto-strips it (hook reports "files were modified", i.e. the commit would be
+   blocked/autofixed) and `check_notebook_format` accepts the cleaned result.
+- A structurally invalid notebook (missing or duplicate cell ids, invalid
+  cell id pattern, invalid cell, non-JSON) is rejected with a non-zero exit;
+  these cases are covered by `share/ci/check_notebook_format_selftest.py`.
+- Notebooks remain valid: `nbformat.validate` passes on both; code cells still
+  pass the existing ruff lint + format hooks.
+- Test gate unchanged: `lib/python/test/picongpu` quick suite reports
+  `174 passed, 2 xfailed, 1 xpassed`.
+
+## Hook-driven notebook reformatting (committed)
+
+Running the hooks normalized `preparingInsightData_example.ipynb`:
+
+- cell ids changed from UUIDs to stable sequential ids (`0`..`27`) - this is
+  nbstripout's intended behavior to keep ids stable across executions;
+- a transient `scrolled: true` cell-metadata entry was dropped;
+- one source line that violated the nbformat spec (a non-final line without a
+  trailing newline) was rejoined with the following line - exactly how
+  `nbformat.read` (and Jupyter itself) already interprets the file, so the
+  rendered output is unchanged.
+
+`createBunch_example.ipynb` (nbformat 4.4) was already clean and is untouched.
+
+## Possible follow-up (out of scope)
+
+Executing the example notebooks in CI (e.g. via `nbval`) would guarantee the
+examples stay runnable, but requires Jupyter kernels and extra dependencies
+and was not requested by the task.

@@ -77,8 +77,12 @@ repos:
         # - CHANGELOG.md: Contains author names that might include special characters for correct spelling.
         # - .zenodo.json: Contains author names that might include special characters for correct spelling.
         # - unit_dimension.py: Contains theta as the symbol for temperature.
+        # - TASK-*.md: multi-agent task coordination artifacts (review/response
+        #   documents at the repo root, not part of any PR) that may contain
+        #   non-ASCII characters and must be kept verbatim (TASK-03-REVIEW.md
+        #   is committed as-is by the review team).
         exclude_types: [rst]
-        exclude: CHANGELOG.md|.zenodo.json|lib/python/picongpu/picmi/particle_functor/unit_dimension.py
+        exclude: CHANGELOG.md|.zenodo.json|lib/python/picongpu/picmi/particle_functor/unit_dimension.py|^TASK-.*\.md$
   - repo: https://github.com/BlankSpruce/gersemi
     rev: 0.22.1
     hooks:
@@ -92,3 +96,21 @@ repos:
       - id: pyproject-fmt
         # The default is 3.13, which would strip the 3.14 classifier.
         args: ["--max-supported-python", "3.14"]
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.9.1
+    hooks:
+      # Commit-time filter: strips outputs, execution counts and default metadata, normalizes cell ids.
+      # Does not rewrite already-committed history.
+      - id: nbstripout
+        types: [jupyter]
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.38.0
+    hooks:
+      # Validates each notebook against the official nbformat v4 schema.
+      # Duplicate cell ids aren't expressible in JSON Schema; nbstripout makes them unique on each commit.
+      - id: check-jsonschema
+        name: check notebook against the nbformat v4 schema
+        files: \.ipynb$
+        types: [jupyter]
+        args:
+          - --schemafile=https://raw.githubusercontent.com/jupyter/nbformat/v5.11.1/nbformat/v4/nbformat.v4.schema.json
