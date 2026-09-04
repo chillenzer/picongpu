@@ -99,47 +99,15 @@ repos:
   - repo: https://github.com/kynan/nbstripout
     rev: 0.9.1
     hooks:
-      # Strip outputs, execution counts and nbstripout's default metadata
-      # keys (metadata.signature, metadata.widgets and the cell metadata
-      # keys collapsed, ExecuteTime, execution, heading_collapsed, hidden,
-      # scrolled), and normalize cell ids, so notebooks stay clean in git.
-      # Top-level notebook keys and other metadata entries are not stripped:
-      # the standard `kernelspec`/`language_info` entries that tools need to
-      # open the notebook with the right kernel stay, and so would
-      # editor/execution leftovers such as `metadata.vscode` or
-      # `metadata.papermill` if a tool ever added them (a top-level
-      # `orig_nbformat` is likewise left as-is). Decision: keep the default
-      # key set for now - the committed example notebooks carry none of those
-      # leftover keys; revisit with --extra-keys if papermill/nbval notebook
-      # CI lands.
-      #
-      # What it does / does NOT do (review Q2): nbstripout is a commit-time
-      # filter. The hook runs `nbstripout` on the notebooks being committed and
-      # rewrites them in place; if a file is changed the commit is blocked and
-      # the cleaned copy must be re-staged, so the committed blob carries no
-      # output. It does NOT rewrite already-committed history: output that is
-      # already in an earlier commit stays in history until that file is
-      # committed again (a history rewrite is out of scope for a pre-commit
-      # hook). The one-time reformat (803d142a4) already removed the output
-      # that had previously been committed in preparingInsightData_example.
+      # Commit-time filter: strips outputs, execution counts and default metadata, normalizes cell ids.
+      # Does not rewrite already-committed history.
       - id: nbstripout
         types: [jupyter]
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: 0.38.0
     hooks:
-      # Structural validation of every notebook against the official nbformat
-      # v4 schema (review Q1). Both example notebooks are nbformat 4.5
-      # (nbformat_minor == 5, every cell carries a unique `id`), so one fixed
-      # schema validates them all: the official nbformat.v4 schema requires
-      # nbformat_minor >= 5 and an `id` on every cell - exactly the 4.5
-      # contract. It is fetched from the pinned nbformat 5.11.1 tag, the same
-      # version the notebooks target (no vendored schema file in the repo).
-      #
-      # Accepted trade-off (raised with the reviewer): unlike the previous
-      # local nbformat hook, duplicate cell ids are NOT rejected here - that
-      # check is not expressible in JSON Schema. In practice it cannot bite:
-      # nbstripout (above) rewrites every cell id to a unique sequential value
-      # on each commit, so a committed notebook always carries unique ids.
+      # Validates each notebook against the official nbformat v4 schema.
+      # Duplicate cell ids aren't expressible in JSON Schema; nbstripout makes them unique on each commit.
       - id: check-jsonschema
         name: check notebook against the nbformat v4 schema
         files: \.ipynb$
