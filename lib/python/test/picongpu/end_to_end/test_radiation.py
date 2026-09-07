@@ -3,6 +3,15 @@ This file is part of PIConGPU.
 Copyright 2026 PIConGPU contributors
 Authors: Julian Lenz
 License: GPLv3+
+
+End-to-end test of the radiation plugin's name-based particle filter.
+
+NOTE: this test exercises the *stacked* C++ + Python flow and therefore
+requires the Python-side `FilteredSpecies` support for the radiation
+diagnostic (see the radiation PICMI filters work). That prerequisite is not
+part of this C++ change, so the test skips cleanly in this PR's own CI and is
+intended to run in the CI of the stacked PRs (it is a compile/C++ gate item
+for the `.filter` kernel path).
 """
 
 import logging
@@ -42,6 +51,14 @@ N_STEPS = 100
 #: the filter keeps only the center of the box in x-direction (in cells);
 #: the particles in the excluded slices still exist and may radiate
 FILTER_LOW, FILTER_HIGH = 4, 12
+
+#: the filter keeps exactly the middle half of the simulation box in x, so the
+#: radiation of the filtered species must drop well below the unfiltered
+#: reference. The two species are independent random draws, so a plain strict
+#: ``<`` is too fragile (the filtered species could occasionally radiate
+#: marginally more than the unfiltered one); a generous relative drop proves
+#: the filter is active without depending on exact macro-particle equality.
+RELATIVE_DROP = 0.10
 
 #: open_name of the radiation output record holding the complex amplitude
 _AMPLITUDE_RECORD = "Amplitude"
@@ -169,10 +186,14 @@ class TestRadiation(TestCase):
     def setUp(self):
         if TestRadiation._results is None:
             # The python-side FilteredSpecies support for Radiation is a
-            # prerequisite that is not part of this C++ change; skip cleanly
-            # if it is not available in this environment.
+            # prerequisite (radiation PICMI filters) that is not part of this
+            # C++ change; skip cleanly if it is not available in this
+            # environment. The test runs in the CI of the stacked PRs.
             if not RadiationFilteredSpecies._supported():
-                self.skipTest("environment does not provide FilteredSpecies support for Radiation; test runs in CI")
+                self.skipTest(
+                    "environment does not provide FilteredSpecies support for Radiation; "
+                    "test runs in the stacked (radiation PICMI filters + this change) CI"
+                )
             result_path = setup_sim()
             gather_results(result_path)
             TestRadiation._results = {
@@ -188,5 +209,9 @@ class TestRadiation(TestCase):
         assert reference > 0.0, "unfiltered radiation is zero -- no particles accelerated?"
         # a subset of emitters may never radiate more energy than the full set
         assert filtered <= reference * (1.0 + 1e-6), f"filtered {filtered} exceeds reference {reference}"
-        # the filter removes a substantial part of the emitters, so the total must drop noticeably
-        assert filtered < reference, f"filtered {filtered} not below reference {reference}"
+        # the filter removes a substantial part of the emitters, so the total must drop clearly; a strict
+        # ``filtered < reference`` would be fragile because the two species are independently seeded random
+        # draws and not exact macro-particle subsets of each other, so require a non-degenerate relative drop.
+        assert filtered < reference * (1.0 - RELATIVE_DROP), (
+            f"filtered {filtered} not below reference {reference} by a relative {RELATIVE_DROP} margin"
+        )

@@ -105,6 +105,13 @@ namespace picongpu
                 {
                     return "radiationMask";
                 }
+
+                /** A filter is deterministic if the filter outcome is equal between evaluations. If so, set this
+                 * variable to true, otherwise to false.
+                 *
+                 * Example: A filter were results depend on a random number generator must return false.
+                 */
+                static constexpr bool isDeterministic = true;
             };
 
             struct KernelRadiationParticles
@@ -226,9 +233,6 @@ namespace picongpu
                         DataSpace<simDim> const superCellOffset(
                             globalOffset + ((superCellIdx - guardingSuperCells) * SuperCellSize::toRT()));
 
-                        // select the particles of this super cell by the current particle filter
-                        auto accFilter = filter(worker, superCellIdx - guardingSuperCells);
-
                         namespace particleAccAlgos = pmacc::particles::algorithm::acc;
                         auto forEachFrameInSupercell
                             = particleAccAlgos::makeForEachFrame<particleAccAlgos::Forward>(worker, pb, superCellIdx);
@@ -236,6 +240,8 @@ namespace picongpu
                         if(!forEachFrameInSupercell.hasParticles())
                             continue;
 
+                        // select the particles of this super cell by the current particle filter
+                        auto accFilter = filter(worker, superCellIdx - guardingSuperCells);
                         forEachFrameInSupercell(
                             /* iterate over the frame list of the current supercell */
                             [&](auto const& lockstepWorker, auto& frameCtx)

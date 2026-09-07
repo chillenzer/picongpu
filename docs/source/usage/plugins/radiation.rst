@@ -198,11 +198,23 @@ In order to do that, the radiating particle species needs the attribute ``radiat
 Selecting particles (particle filters)
 """"""""""""""""""""""""""""""""""""""""""
 
-By default all particles of the radiating species contribute to the radiation.
-A selection of particles can be achieved either by the hard-coded gamma filter
-(the ``radiationMask`` attribute) or, more generally, with a name-based
-particle filter selected by the ``--<species>_radiation.filter`` command line
-option.
+By default all particles of a radiating species contribute to the radiation.
+A subset of particles can be selected in two ways:
+
+* by the hard-coded gamma filter writing the ``radiationMask`` attribute
+  (default, no further option needed), or
+* by a name-based particle filter selected with the
+  ``--<species>_radiation.filter`` command line option.
+
+.. note::
+
+   The gamma filter is the *current* default selection mechanism of the C++
+   radiation plugin. The PICMI particle-filter support (a Python-side
+   prerequisite, still in progress) introduces generic per-species particle
+   filters for the radiation diagnostic; once that work is merged, a plain
+   species defaults to "no selection" (all particles contribute) and
+   filtered species select particles through generic particle filters. This
+   section will be updated accordingly.
 
 Gamma filter (``radiationMask`` attribute)
 """"""""""""""""""""""""""""""""""""""""""""
@@ -235,14 +247,13 @@ Alternatively, the command line option
    --<species>_radiation.filter <filterName>
 
 selects a particle filter by name. The filter is resolved against the filters
-defined in :ref:`particleFilters.param <usage-params-core>` (the
-``AllParticleFilters`` list) and only the particles passing the filter
+defined in :ref:`particleFilters.param <usage-params-core-particles-filters>`
+(the ``AllParticleFilters`` list) and only the particles passing the filter
 contribute to the radiation. If the option is not given, the gamma filter above
 is used as the default.
 
 In the :ref:`PICMI <PICMI>` interface, a filtered radiation diagnostic
-is created by wrapping the species in a
-:py:class:`~picongpu.picmi.particle_functor.particle_filter.FilteredSpecies`:
+is created by wrapping the species in a ``FilteredSpecies``:
 
 .. code:: python
 
@@ -260,10 +271,15 @@ generated ``N.cfg``.
 
 .. note::
 
-   The gamma filter and a named particle filter are mutually exclusive per
-   species: either the ``radiationMask`` attribute is written by the gamma
-   filter (default, no ``.filter`` option) or the named filter is evaluated
-   directly for each particle (``.filter`` option given).
+   In the C++ implementation the gamma filter (default, no ``.filter`` option)
+   and a named particle filter are mutually exclusive per species: either
+   ``executeParticleFilter`` writes the ``radiationMask`` attribute, or the
+   named filter is evaluated directly for each particle. A PICMI
+   ``FilteredSpecies`` is rendered with *both* a name-based ``.filter`` option
+   (evaluated inline) and a ``radiationMask`` attribute that a per-species
+   mask functor would write; under a named ``.filter`` the inline predicate
+   takes precedence and the mask is not consulted. Both select the same
+   particles for the same filter name.
 
 
 Window function filter

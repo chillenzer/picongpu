@@ -364,7 +364,7 @@ namespace picongpu
                        && std::find(m_allowedFilters.begin(), m_allowedFilters.end(), m_filterName)
                               == m_allowedFilters.end())
                         throw std::runtime_error(
-                            pluginName + ": unknown filter '" + m_filterName + "'. Available filters are: ["
+                            pluginPrefix + ": unknown filter '" + m_filterName + "'. Available filters are: ["
                             + plugins::misc::concatenateToString(m_allowedFilters, ", ") + "].");
 
                     if(!notifyPeriod.empty())
@@ -1241,9 +1241,29 @@ namespace picongpu
                     auto kernel = PMACC_LOCKSTEP_KERNEL(KernelRadiationParticles{})
                                       .config(DataSpace<2>(gridDim_rad, numJobs), *particles);
 
-                    /* If no particle filter is given on the command line, the (optional) gamma filter is executed
-                     * beforehand (writing the `radiationMask` attribute) and the kernel selects the particles via the
-                     * default `ReadRadiationMaskFilter`.
+                    /* Two mutually exclusive particle-selection mechanisms:
+                     *
+                     * 1. No `.filter` given (default): the per-species particle filter is executed beforehand
+                     *    (`executeParticleFilter`), writing the `radiationMask` attribute of every contributing
+                     *    particle into the species' frames; the kernel then reads it via the default
+                     *    `ReadRadiationMaskFilter`. This is the historic gamma-filter path and is exactly the
+                     *    mechanism the PICMI particle-filter support (task-04 / radiation PICMI filters, a
+                     *    Python-side prerequisite) builds on: it renders a per-species `<species>_<filter>`
+                     *    mask functor into `radiation.param` and registers the `radiationMask` attribute for the
+                     *    filtered species. Running this branch for such a species uses that rendered mask as
+                     *    designed.
+                     *
+                     * 2. Named `.filter` (command line): the filter is resolved by name against
+                     *    `AllParticleFilters` (`particleFilters.param`) and evaluated as an inline predicate
+                     *    inside the kernel; `executeParticleFilter` is deliberately NOT run here, so a
+                     *    `radiationMask` attribute (e.g. a mask functor rendered by the PICMI side) is left
+                     *    unused for that species. For the same filter name both mechanisms select the same
+                     *    particles, so the two paths are compatible, but a species must not rely on both at
+                     *    once. NOTE (stacking with task-04): the PICMI flow emits both a mask functor and the
+                     *    `.filter` option for a `FilteredSpecies`; the inline predicate below takes precedence and
+                     *    the rendered mask functor becomes inert for that species. This pairing must remain a
+                     *    compile-clean stacked build (CI gate) and is covered by the e2e test in the Python
+                     *    suite once the prerequisite is merged.
                      */
                     if(m_filterName.empty())
                     {
