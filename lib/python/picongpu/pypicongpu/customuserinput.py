@@ -7,9 +7,39 @@ License: GPLv3+
 
 from typing import Any
 
-from pydantic import BaseModel, Field, model_serializer
+from pydantic import BaseModel, Field, model_serializer, model_validator
 
 from .rendering import RenderedObject
+
+JSON_SERIALISABLE_LEAVES = (bool, int, float, str)
+"""
+atomic values that survive a round trip through json.dumps / json.loads unaltered
+"""
+
+
+def check_rendering_context_is_json_serialisable(value: Any, path: str = "$") -> None:
+    """
+    ensure that every value reachable in the rendering context is JSON-serialisable
+
+    Allows bool/int/float/str/None as leaves and list/dict as containers
+    whose elements/values satisfy the same rule. Anything else (set, tuple,
+    bytes, callables, arbitrary objects, ...) is rejected with a clear
+    ValueError so that the mustache rendering context stays byte-deterministic.
+    """
+    if value is None or isinstance(value, JSON_SERIALISABLE_LEAVES):
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            check_rendering_context_is_json_serialisable(item, f"{path}[{key!r}]")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            check_rendering_context_is_json_serialisable(item, f"{path}[{index}]")
+        return
+    raise ValueError(
+        "custom user input values must be JSON-serialisable (bool/int/float/str/None "
+        f"or list/dict thereof), but the value at {path} has type {type(value).__name__}: {value!r}"
+    )
 
 
 class CustomUserInput(RenderedObject, BaseModel):
@@ -51,6 +81,7 @@ class CustomUserInput(RenderedObject, BaseModel):
             raise ValueError("tag must not be empty string!")
         if not custom_input:
             raise ValueError("custom input must contain at least 1 key")
+        check_rendering_context_is_json_serialisable(custom_input)
 
         if (self.tags is None) and (self.rendering_context is None):
             self.tags = [tag]
@@ -67,6 +98,31 @@ class CustomUserInput(RenderedObject, BaseModel):
     def get_tags(self) -> list[str]:
         return self.tags
 
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_serialized(cls, value):
+        # accept both the lossless per-entry form {"tags": ..., "rendering_context": ...}
+        # produced by _get_serialized and the flat merged form (the "tags" list plus the
+        # rendering context keys at the top level) as produced by Simulation's customuserinput
+        # field serializer. The before-validator normalises the flat form into the per-entry
+        # form so that the rendering context keys are not silently dropped (round-trip safety).
+        if isinstance(value, dict) and "rendering_context" not in value:
+            tags = value.get("tags")
+            rendering_context = {key: entry for key, entry in value.items() if key != "tags"}
+            return {"tags": tags, "rendering_context": rendering_context or None}
+        return value
+
+    @model_validator(mode="after")
+    def _validate_json_serialisable_rendering_context(self):
+        if self.rendering_context is not None:
+            check_rendering_context_is_json_serialisable(self.rendering_context)
+        return self
+
     @model_serializer(mode="plain")
     def _get_serialized(self) -> dict[str, Any] | None:
-        return self.rendering_context
+        # lossless form: carry both the tags and the rendering context so that the entry can
+        # be reconstructed from its serialised form (round-trip safety); the *flattened*
+        # (merged) form is produced by Simulation's customuserinput field serializer.
+        if self.rendering_context is None and self.tags is None:
+            return None
+        return {"tags": self.tags, "rendering_context": self.rendering_context}
