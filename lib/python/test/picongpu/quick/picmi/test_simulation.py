@@ -6,6 +6,7 @@ License: GPLv3+
 """
 
 import copy
+import json
 import os
 import shutil
 import tempfile
@@ -15,6 +16,7 @@ from unittest import TestCase
 import pytest
 from pydantic import ValidationError
 from picongpu import picmi
+from picongpu.picmi.diagnostics import Checkpoint, TimeStepSpec
 from picongpu.picmi.interaction.ionization.fieldionization import ADK, ADKVariant
 from picongpu.pypicongpu import customuserinput, species
 
@@ -389,6 +391,57 @@ class TestPicmiSimulation(TestCase):
         assert os.path.isdir(outdir)
         assert os.path.exists(outdir + "/include/picongpu/param/simulation.param")
 
+    def test_picmi_simulation_json_dumped(self):
+        """the picmi Simulation is serialised into metadata/ of the setup dir"""
+        outdir = self.__get_tmpdir_name()
+        self.sim.write_input_file(outdir)
+
+        metadata_file = Path(outdir) / "metadata" / "picmi_simulation.json"
+        assert metadata_file.is_file()
+
+        # valid JSON, dump-validate-dump round-trip identity
+        json_data = json.loads(metadata_file.read_text())
+        assert json_data == self.sim.model_dump(mode="json")
+        restored = picmi.Simulation.model_validate(json_data)
+        assert restored.model_dump(mode="json") == json_data
+
+    def test_picmi_simulation_json_solver_less_roundtrip(self):
+        """a solver-less simulation round-trips through model_validate"""
+        sim = picmi.Simulation(time_step_size=17, max_steps=4)
+        dump = sim.model_dump(mode="json")
+        restored = picmi.Simulation.model_validate(dump)
+        assert restored.model_dump(mode="json") == dump
+
+    def test_picmi_simulation_from_setup(self):
+        """Simulation.from_setup reconstructs the picmi Simulation from a setup dir"""
+        outdir = self.__get_tmpdir_name()
+        self.sim.write_input_file(outdir)
+
+        restored = picmi.Simulation.from_setup(outdir)
+        assert restored.model_dump(mode="json") == self.sim.model_dump(mode="json")
+
+    def test_picmi_simulation_json_with_timestepspec(self):
+        """simulations using TimeStepSpec in diagnostics are serialisable"""
+        grid = get_grid(1, 1, 1, 32)
+        solver = picmi.ElectromagneticSolver(method="Yee", grid=grid)
+        sim = picmi.Simulation(time_step_size=17, max_steps=128, solver=solver)
+        sim.add_diagnostic(Checkpoint(period=TimeStepSpec[::50]("steps")))
+        outdir = self.__get_tmpdir_name()
+        sim.write_input_file(outdir)
+
+        metadata_file = Path(outdir) / "metadata" / "picmi_simulation.json"
+        assert metadata_file.is_file()
+        json_data = json.loads(metadata_file.read_text())
+
+        # the TimeStepSpec is serialised as its specs, not dropped
+        period = json_data["diagnostics"][0]["period"]
+        assert period == {"specs": [[None, None, 50]], "specs_in_seconds": [], "unit_system": "steps"}
+
+        # round-trips identically, preserving the serialised TimeStepSpec
+        restored = picmi.Simulation.model_validate(json_data)
+        assert restored.model_dump(mode="json") == json_data
+        assert restored.diagnostics[0]["period"] == period
+
     def test_custom_template_dir_basic_write_input_file(self):
         """providing custom template dir possible or write_input_file"""
         # note: automatically cleaned up in teardown
@@ -422,6 +475,7 @@ class TestPicmiSimulation(TestCase):
         assert os.path.isfile(out_dir + "/metadata/pypicongpu_rendering_context.json")
         assert os.path.isfile(out_dir + "/metadata/pypicongpu_runner.json")
         assert os.path.isfile(out_dir + "/metadata/rc_params.json")
+        assert os.path.isfile(out_dir + "/metadata/picmi_simulation.json")
 
     def test_custom_input_basic_write_input_file(self):
         """test custom input may be rendered"""
@@ -457,6 +511,12 @@ class TestPicmiSimulation(TestCase):
         assert os.path.isfile(out_dir + "/metadata/pypicongpu_rendering_context.json")
         assert os.path.isfile(out_dir + "/metadata/pypicongpu_runner.json")
         assert os.path.isfile(out_dir + "/metadata/rc_params.json")
+        assert os.path.isfile(out_dir + "/metadata/picmi_simulation.json")
+
+        # the picmi-level dump deliberately does not carry custom user input
+        # (@todo re-include with TT-04, https://github.com/chillenzer/picongpu/issues/33)
+        picmi_dump = json.loads(Path(out_dir + "/metadata/picmi_simulation.json").read_text())
+        assert "picongpu_custom_user_input" not in picmi_dump
 
     def test_custom_template_dir_basic_get_runner(self):
         """using picongpu_get_runner() directly sets template dir"""

@@ -7,6 +7,7 @@ License: GPLv3+
 
 # make pypicongpu classes accessible for conversion to pypicongpu
 import datetime
+import json
 import logging
 import math
 from functools import reduce
@@ -212,8 +213,10 @@ class Simulation(picmistandard.PICMI_Simulation):
     def _post_init(self):
         # additional PICMI stuff checks, @todo move to picmistandard, Brian Marre, 2024
         ## throw if both cfl & delta_t are set
+        # During (de)serialisation the solver is still a raw dict when this validator runs;
+        # both cfl and delta_t are stored in the dump, so nothing needs to be recomputed.
         if (
-            self.solver is not None
+            isinstance(self.solver, BaseModel)
             and self.solver.method in ["Yee", "Lehe"]
             and isinstance(self.solver.grid, Cartesian3DGrid)
         ):
@@ -303,6 +306,29 @@ class Simulation(picmistandard.PICMI_Simulation):
             sim=self, template_dir=self.picongpu_template_dir or (templates.path(),), setup_dir=Path(file_name)
         )
         self._runner.generate(exist_ok=exist_ok, **flags)
+        self._runner.store_metadata(self.model_dump(mode="json"), filename="picmi_simulation.json")
+        # The ro-crate is (re-)snapshotted after the picmi dump so that the crate
+        # tracks every file under setup_dir/metadata/.
+        self._runner._write_rocrate()
+
+    @classmethod
+    def from_setup(cls, setup_dir: str | Path) -> "Simulation":
+        """
+        reconstruct the picmi Simulation from a previously generated setup
+
+        reads `metadata/picmi_simulation.json` from the given setup directory and
+        reconstructs the picmi-level Simulation that produced it (see
+        `write_input_file`).
+
+        @note picongpu_custom_user_input is deliberately absent from
+            `metadata/picmi_simulation.json` (it is omitted from the model dump
+            because it may hold non-serializable user data). It is carried, in
+            flattened form, by the pypicongpu-level `metadata/pypicongpu_runner.json`
+            instead. Re-inclusion in the picmi dump is tracked by TT-04.
+        """
+        metadata_file = Path(setup_dir) / "metadata" / "picmi_simulation.json"
+        with metadata_file.open() as file:
+            return cls.model_validate(json.load(file))
 
     def picongpu_add_custom_user_input(self, custom_user_input: pypicongpu.customuserinput.CustomUserInput):
         """add custom user input to previously stored input"""

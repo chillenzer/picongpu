@@ -62,7 +62,7 @@ class Cartesian3DGrid(picmistandard.PICMI_Cartesian3DGrid):
     picongpu_super_cell_size: tuple[int, int, int] = Field(default=(8, 8, 4))
 
     @computed_field
-    def picongpu_cell_size(self) -> tuple[int, int, int]:
+    def picongpu_cell_size(self) -> tuple[float, float, float]:
         return (
             (self.upper_bound[0] - self.lower_bound[0]) / self.number_of_cells[0],
             (self.upper_bound[1] - self.lower_bound[1]) / self.number_of_cells[1],
