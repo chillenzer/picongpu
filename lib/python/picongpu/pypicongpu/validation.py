@@ -179,6 +179,8 @@ def validate_huygens_against_absorber(
     absorber_thickness_by_axis_boundary,
     solver_margin: int = 1,
     moving_window: bool = False,
+    grid_size: Iterable[int] | None = None,
+    is_periodic: Iterable[bool] | None = None,
 ):
     """
     Check that a Huygens surface is far enough away from each global-domain boundary.
@@ -193,9 +195,16 @@ def validate_huygens_against_absorber(
     (Yee/order-2 ``=> 1``, i.e. the required offset equals the absorber thickness alone).
 
     Positions use the C++ convention: the ``min`` (negative boundary) entry is the
-    distance in cells from the min edge of the global domain, the ``max`` (positive
+    distance in cells from the min edge of the global domain. The ``max`` (positive
     boundary) entry is negative and its magnitude is the distance from the max edge
-    (``-positions[d][1]``).
+    (``-positions[d][1]``); a *positive* ``max`` entry is an absolute coordinate and
+    its distance from the max edge is ``grid_size[d] - positions[d][1]``, mirroring
+    the C++ ``else if(POSITION[axis][boundaryIdx] > 0) offset = size - POSITION`` case.
+
+    Periodically connected axes carry no absorber: mirroring the C++
+    ``fields::absorber::Absorber::getGlobalThickness()`` (which zeroes the thickness on
+    periodic axes), axes flagged via ``is_periodic`` have their thickness zeroed and are
+    hence exempt from the distance check.
 
     The YMax boundary (positive y) is exempt from the check when the moving window is
     enabled, as in the C++ check.
@@ -204,18 +213,42 @@ def validate_huygens_against_absorber(
     :param absorber_thickness_by_axis_boundary: absorber thickness per (axis, boundary), shape [3][2]
     :param solver_margin: FDTD_spatial_order / 2 of the field solver (default 1 for Yee)
     :param moving_window: whether the moving window is enabled (exempts YMax)
+    :param grid_size: global cell count per axis, required to interpret a positive
+                      (absolute) max position as a distance from the max edge
+    :param is_periodic: per-axis periodic flags; periodic axes are exempt from the check
     :raise ValueError: if any (axis, boundary) is too close to the boundary; all violations
                        are collected into a single error message
     """
     validate_nested_3x2_shape(positions, field="huygens_surface_positions")
     validate_nested_3x2_shape(absorber_thickness_by_axis_boundary, field="absorber_thickness")
+    if grid_size is not None and len(grid_size) != 3:
+        raise ValueError(f"The global cell count must have exactly 3 entries (one per axis). You gave: {grid_size=}.")
+    thickness = [list(pair) for pair in absorber_thickness_by_axis_boundary]
+    if is_periodic is not None:
+        for axis, periodic in enumerate(is_periodic):
+            if periodic:
+                thickness[axis][0] = 0
+                thickness[axis][1] = 0
     violations = []
     for axis in range(3):
         for boundary in range(2):
             if moving_window and axis == 1 and boundary == 1:
                 continue
-            required = absorber_thickness_by_axis_boundary[axis][boundary] + solver_margin - 1
-            distance = positions[axis][boundary] if boundary == 0 else -positions[axis][1]
+            required = thickness[axis][boundary] + solver_margin - 1
+            if boundary == 0:
+                distance = positions[axis][0]
+            else:
+                maximum = positions[axis][1]
+                if maximum > 0:
+                    if grid_size is None:
+                        raise ValueError(
+                            "A positive (absolute) max position needs the global grid_size to compute the "
+                            "distance from the max boundary. You gave grid_size=None with "
+                            f"huygens_surface_positions[{axis}][1]={maximum}."
+                        )
+                    distance = grid_size[axis] - maximum
+                else:
+                    distance = -maximum
             if distance < required:
                 violations.append(
                     f"axis '{_AXIS_NAMES[axis]}' at the '{_BOUNDARY_NAMES[boundary]}' boundary must be "

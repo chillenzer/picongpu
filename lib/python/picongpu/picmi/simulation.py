@@ -457,6 +457,9 @@ class Simulation(picmistandard.PICMI_Simulation):
         (NUM_CELLS = 12 everywhere) when the user did not configure an absorber, so the
         check still guards the default case.
 
+        Mirroring the C++ ``Absorber::getGlobalThickness()``, axes with periodic boundary
+        conditions carry no absorber and are exempt from the check.
+
         The YMax boundary is exempt when a moving window is active.
         """
         thickness = (
@@ -464,14 +467,19 @@ class Simulation(picmistandard.PICMI_Simulation):
             if field_absorber is not None
             else pypicongpu.fieldabsorber.FieldAbsorber().thickness
         )
+        grid = self.solver.grid
+        # C++ Absorber::getGlobalThickness() zeroes the thickness on periodic axes
+        is_periodic = [bc == "periodic" for bc in grid.lower_boundary_conditions]
         moving_window = self.picongpu_moving_window_move_point is not None
         for laser in self.lasers:
             validate_huygens_against_absorber(
                 laser.picongpu_huygens_surface_positions,
                 thickness,
-                # Yee/order-2 FDTD solver: FDTD_spatial_order / 2 = 1
+                # Yee/order-2 FDTD solver: FDTD_spatial_order / 2 = 1 (see FDTD_spatial_order)
                 solver_margin=1,
                 moving_window=moving_window,
+                grid_size=grid.number_of_cells,
+                is_periodic=is_periodic,
             )
 
     def run(self, *args, **kwargs) -> None:

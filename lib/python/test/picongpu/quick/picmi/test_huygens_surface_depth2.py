@@ -81,8 +81,62 @@ def test_non_default_absorber_changes_threshold():
 def test_pml_cells_drive_threshold():
     """pml_cells (TT-19 symmetric sugar) likewise changes the required distance"""
     # pml_cells=32 makes the default 16-cell positions too close
-    with pytest.raises(ValueError, match=".*at least 32 cells away.*"):
+    with pytest.raises(ValueError, match=".*axis 'x'.*at least 32 cells away.*"):
         _sim_with_laser(grid_kwargs={"pml_cells": [32, 32, 32]}).get_as_pypicongpu()
+
+
+def test_pml_cells_do_not_drive_periodic_axes():
+    """pml_cells raises the threshold only on absorbing axes, not on the periodic z axis"""
+    # x/y exactly at the pml threshold, z only 5 cells from the (periodic) boundary -> passes
+    _sim_with_laser(
+        grid_kwargs={"pml_cells": [32, 32, 32]},
+        laser_kwargs={"picongpu_huygens_surface_positions": [[32, -32], [32, -32], [5, -32]]},
+    ).get_as_pypicongpu()
+    # the same z distance on an absorbing (open) z axis is rejected
+    with pytest.raises(ValueError, match=".*axis 'z'.*at least 32 cells away, but is only 5 cells away"):
+        _sim_with_laser(
+            grid_kwargs={
+                "pml_cells": [32, 32, 32],
+                "lower_boundary_conditions": ["open", "open", "open"],
+                "upper_boundary_conditions": ["open", "open", "open"],
+            },
+            laser_kwargs={"picongpu_huygens_surface_positions": [[32, -32], [32, -32], [32, -5]]},
+        ).get_as_pypicongpu()
+
+
+def test_periodic_axis_exempt_from_check():
+    """a surface hugging a periodic boundary passes even though it lies within the absorber thickness"""
+    # z is periodic in the fixture grid: 5 cells from the z boundary is fine
+    _sim_with_laser(
+        laser_kwargs={"picongpu_huygens_surface_positions": [[16, -16], [16, -16], [5, -16]]}
+    ).get_as_pypicongpu()
+    # the same distance on the absorbing y axis is rejected
+    with pytest.raises(ValueError, match=".*axis 'y' at the 'min' boundary.*is only 5 cells away"):
+        _sim_with_laser(
+            laser_kwargs={"picongpu_huygens_surface_positions": [[16, -16], [5, -16], [16, -16]]}
+        ).get_as_pypicongpu()
+    # an all-open grid has no exemption and rejects z too
+    with pytest.raises(ValueError, match=".*axis 'z' at the 'min' boundary.*is only 5 cells away"):
+        _sim_with_laser(
+            grid_kwargs={
+                "lower_boundary_conditions": ["open", "open", "open"],
+                "upper_boundary_conditions": ["open", "open", "open"],
+            },
+            laser_kwargs={"picongpu_huygens_surface_positions": [[16, -16], [16, -16], [5, -16]]},
+        ).get_as_pypicongpu()
+
+
+def test_positive_max_absolute_coordinates():
+    """a positive (absolute) max position is checked as size - position against the actual grid"""
+    # x max at 112 on the 192-cell x axis is 80 cells from the edge -> passes
+    _sim_with_laser(
+        laser_kwargs={"picongpu_huygens_surface_positions": [[16, 112], [16, -16], [16, -16]]}
+    ).get_as_pypicongpu()
+    # x max at 188 is only 4 cells from the 192-cell edge -> rejected with a positive distance
+    with pytest.raises(ValueError, match=".*axis 'x' at the 'max' boundary.*is only 4 cells away"):
+        _sim_with_laser(
+            laser_kwargs={"picongpu_huygens_surface_positions": [[16, 188], [16, -16], [16, -16]]}
+        ).get_as_pypicongpu()
 
 
 def test_too_close_to_boundary_raises_at_input_time():

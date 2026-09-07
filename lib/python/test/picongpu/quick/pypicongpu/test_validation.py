@@ -68,3 +68,34 @@ def test_all_violations_aggregated():
     assert "axis 'x' at the 'min' boundary" in message
     assert "axis 'z' at the 'max' boundary" in message
     assert "axis 'y'" not in message
+
+
+def test_periodic_axis_exempt_from_check():
+    """a periodic axis carries no absorber (thickness zeroed like C++ getGlobalThickness), so it is exempt"""
+    positions = [[16, -16], [16, -16], [1, -1]]
+    # without the periodic flag the default 12-cell threshold rejects the z boundary surfaces
+    with pytest.raises(ValueError, match="is only 1 cells away"):
+        validate_huygens_against_absorber(positions, _DEFAULT_THICKNESS)
+    # flagging z as periodic zeroes its threshold -> passes
+    validate_huygens_against_absorber(positions, _DEFAULT_THICKNESS, is_periodic=(False, False, True))
+    # the flag is per-axis: flagging x instead still leaves z checked
+    with pytest.raises(ValueError, match=".*axis 'z' at the 'min' boundary.*"):
+        validate_huygens_against_absorber(positions, _DEFAULT_THICKNESS, is_periodic=(True, False, False))
+
+
+def test_positive_max_computed_as_size_minus_position():
+    """a positive (absolute) max position is a distance of size - position from the max edge,
+    mirroring the C++ Solver.hpp checkRequirements (review finding 2)"""
+    # 112 on a 128-cell axis sits 16 cells from the max edge and passes the default threshold
+    validate_huygens_against_absorber([[16, 112], [16, -16], [16, -16]], _DEFAULT_THICKNESS, grid_size=(128, 128, 128))
+    # 125 on a 128-cell axis is only 3 cells away, reported as a positive actual distance
+    with pytest.raises(ValueError, match=".*at least 12 cells away, but is only 3 cells away"):
+        validate_huygens_against_absorber(
+            [[16, 125], [16, -16], [16, -16]], _DEFAULT_THICKNESS, grid_size=(128, 128, 128)
+        )
+
+
+def test_positive_max_requires_grid_size():
+    """an absolute max coordinate cannot be distance-checked without the global grid size"""
+    with pytest.raises(ValueError, match="grid_size"):
+        validate_huygens_against_absorber([[16, 112], [16, -16], [16, -16]], _DEFAULT_THICKNESS)
