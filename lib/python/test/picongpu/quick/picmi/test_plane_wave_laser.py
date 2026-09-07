@@ -32,16 +32,22 @@ class TestPicmiPlaneWaveLaser(TestCase):
         """PlaneWaveLaser accepts no focus-position argument and converts successfully"""
         picmi_laser = self._make_laser()
         pypic_laser = picmi_laser.get_as_pypicongpu()
-        assert pypic_laser.model_dump() != {}
-        assert pypic_laser.type_planewave
-        assert pypic_laser.focus_pos_si == (0, 0, 0)
-        assert pypic_laser.laser_nofocus_constant_si == 0.0
+        dumped = pypic_laser.model_dump()
+        assert dumped["type_planewave"] is True
+        assert dumped["laser_nofocus_constant_si"] == 0.0
+        assert all(component.component == 0.0 for component in pypic_laser.focus_pos_si)
+
+    def test_model_dump_is_not_a_roundtrip_constructor(self):
+        """model_dump() output is serialization-only; it is not valid PlaneWaveLaser constructor input"""
+        picmi_laser = self._make_laser()
+        with pytest.raises(ValidationError):
+            picmi.PlaneWaveLaser(**picmi_laser.model_dump())
 
     def test_focus_position_not_user_facing(self):
         """The focus position must not be a user-facing constructor argument"""
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match="focus position"):
             self._make_laser(focal_position=[1, 2, 3])
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match="focus position"):
             self._make_laser(focus_pos=[1, 2, 3])
         assert "focal_position" not in picmi.PlaneWaveLaser.model_fields
         assert "focus_pos" not in picmi.PlaneWaveLaser.model_fields

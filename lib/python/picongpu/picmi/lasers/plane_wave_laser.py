@@ -17,7 +17,7 @@ from .base_laser import BaseLaser, PositiveFloat
 from .polarization_type import PolarizationType
 
 
-_PLANE_WAVE_FOCUS_POSITION = [0.0, 0.0, 0.0]
+_PLANE_WAVE_FOCUS_POSITION = (0.0, 0.0, 0.0)
 
 
 @default_converts_to(
@@ -75,6 +75,18 @@ class PlaneWaveLaser(BaseModel, BaseLaser):
     @computed_field
     def k0(self) -> float:
         return 2.0 * math.pi / self.wavelength
+
+    @model_validator(mode="before")
+    def _reject_user_focus_position(data):
+        if isinstance(data, dict):
+            supplied = {key: value for key, value in data.items() if key in ("focal_position", "focus_pos")}
+            if supplied:
+                raise ValueError(
+                    "PlaneWaveLaser must not be given a focus position: a plane wave has no focus, "
+                    "so PIConGPU renders it with an internal hardcoded focus position [0.0, 0.0, 0.0]. "
+                    f"You supplied {supplied}. Remove 'focal_position'/'focus_pos'."
+                )
+        return data
 
     @model_validator(mode="after")
     def _validate(self):
