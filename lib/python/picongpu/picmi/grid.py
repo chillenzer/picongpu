@@ -9,7 +9,7 @@ from typing import Annotated
 import picmistandard
 from pydantic import AfterValidator, Field, computed_field
 
-from ..pypicongpu import grid, util
+from ..pypicongpu import fieldabsorber, grid, util
 from .copy_attributes import converts_to
 
 
@@ -60,6 +60,18 @@ class Cartesian3DGrid(picmistandard.PICMI_Cartesian3DGrid):
     picongpu_n_gpus: Annotated[tuple[int, int, int], AfterValidator(_normalise_n_gpus)] = Field(default=(1, 1, 1))
     picongpu_grid_dist: None | list[list[int]] = Field(default=None)
     picongpu_super_cell_size: tuple[int, int, int] = Field(default=(8, 8, 4))
+    picongpu_field_absorber: fieldabsorber.FieldAbsorber | None = Field(default=None)
+    """
+    fully faithful, per-boundary field absorber configuration
+
+    carries the absorber kind and the NUM_CELLS[3][2]-shaped thickness, mirroring
+    include/picongpu/param/fieldAbsorber.param
+
+    takes precedence over the standard ``pml_cells`` grid field: setting both is an
+    error - one value per direction is genuinely ambiguous, so neither is applied;
+    if only ``pml_cells`` is set, it is used as the per-axis symmetric thickness of
+    an otherwise default absorber.
+    """
 
     @computed_field
     def picongpu_cell_size(self) -> tuple[int, int, int]:
@@ -94,7 +106,15 @@ class Cartesian3DGrid(picmistandard.PICMI_Cartesian3DGrid):
             self.upper_boundary_conditions,
         )
         util.unsupported("guard cells", self.guard_cells)
-        util.unsupported("pml cells", self.pml_cells)
+
+        if self.pml_cells is not None and self.picongpu_field_absorber is not None:
+            raise ValueError(
+                "pml_cells and picongpu_field_absorber are two conflicting ways to configure the "
+                "field absorber; set only one of them."
+            )
+        if self.pml_cells is not None:
+            if len(self.pml_cells) != 3 or not all(isinstance(n, int) and n >= 0 for n in self.pml_cells):
+                raise ValueError(f"pml_cells must be a list of 3 non-negative integers, you gave {self.pml_cells=}.")
 
         if self.lower_boundary_conditions[0] not in PICONGPU_BOUNDARY_CONDITION_BY_PICMI_ID:
             raise ValueError("X: boundary condition not supported")
@@ -137,3 +157,26 @@ class Cartesian3DGrid(picmistandard.PICMI_Cartesian3DGrid):
                     raise ValueError(
                         f"grid distribution in {dim_name[dim]} dimension must be multiple of super cell size"
                     )
+
+    def get_as_pypicongpu_field_absorber(self) -> fieldabsorber.FieldAbsorber | None:
+        """
+        translate the absorber configuration to a pypicongpu FieldAbsorber, or None
+
+        The standard ``pml_cells`` field is honoured as per-axis symmetric thickness
+        (PICMI Option 1 sugar); the fully faithful ``picongpu_field_absorber`` object,
+        when given (setting both is rejected by ``check()``), is passed through unchanged.
+
+        :return: a pypicongpu FieldAbsorber or None (meaning: keep the pypicongpu defaults)
+        """
+        self.check()
+        if self.picongpu_field_absorber is not None:
+            return self.picongpu_field_absorber
+        if self.pml_cells is not None:
+            return fieldabsorber.FieldAbsorber(
+                thickness=(
+                    (self.pml_cells[0], self.pml_cells[0]),
+                    (self.pml_cells[1], self.pml_cells[1]),
+                    (self.pml_cells[2], self.pml_cells[2]),
+                )
+            )
+        return None
