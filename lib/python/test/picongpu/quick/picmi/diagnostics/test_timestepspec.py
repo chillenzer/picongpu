@@ -275,3 +275,61 @@ class TestTimeStepSpec(TestCase):
         as_single = TimeStepSpec[stop_time]("seconds").get_as_pypicongpu(dt, num_steps).specs[0]
         as_slice = TimeStepSpec[stop_time:stop_time]("seconds").get_as_pypicongpu(dt, num_steps).specs[0]
         assert as_single == as_slice
+
+
+class TestTimeStepSpecSerialization(TestCase):
+    """round-trip and validation of TimeStepSpec via its JSON serializer (_to_json/_from_json)"""
+
+    def roundtrip(self, ts):
+        return TimeStepSpec._from_json(TimeStepSpec._to_json(ts))
+
+    def test_roundtrip_steps_spec(self):
+        ts = TimeStepSpec[10:20:2, 7]("steps")
+        restored = self.roundtrip(ts)
+        assert restored.specs == ts.specs
+        assert restored.specs_in_seconds == ts.specs_in_seconds
+        assert restored.unit_system == ts.unit_system
+
+    def test_roundtrip_seconds_spec(self):
+        ts = TimeStepSpec[1.0e-15:5.0e-15:2.0e-16]("seconds")
+        restored = self.roundtrip(ts)
+        assert restored.specs_in_seconds == ts.specs_in_seconds
+        assert restored.specs == ts.specs
+        assert restored.unit_system == "seconds"
+
+    def test_roundtrip_mixed_spec(self):
+        ts = TimeStepSpec[:12:2]("steps") + TimeStepSpec[1.0e-15:5.0e-15:2.0e-16]("seconds")
+        assert ts.unit_system == "mixed"
+        restored = self.roundtrip(ts)
+        assert restored.specs == ts.specs
+        assert restored.specs_in_seconds == ts.specs_in_seconds
+        assert restored.unit_system == "mixed"
+
+    def test_roundtrip_empty_spec(self):
+        ts = TimeStepSpec()
+        restored = self.roundtrip(ts)
+        assert restored.specs == ()
+        assert restored.specs_in_seconds == ()
+        assert restored.unit_system is None
+
+    def test_slice_passthrough(self):
+        # an existing instance is passed through, not re-encoded
+        ts = TimeStepSpec[::50]("steps")
+        assert TimeStepSpec._from_json(ts) is ts
+
+    def test_open_ended_slice_survives_roundtrip(self):
+        ts = TimeStepSpec[:]("steps")
+        restored = self.roundtrip(ts)
+        assert restored.specs == (slice(None, None, None),)
+
+    def test_invalid_unit_system_rejected(self):
+        with pytest.raises(ValueError, match="Unknown unit system"):
+            TimeStepSpec._from_json({"specs": [[None, None, 50]], "specs_in_seconds": [], "unit_system": "sauce"})
+
+    def test_missing_specs_key_rejected(self):
+        with pytest.raises(ValueError, match="missing key"):
+            TimeStepSpec._from_json({"specs_in_seconds": []})
+
+    def test_non_dict_rejected(self):
+        with pytest.raises(ValueError, match="must be a dict"):
+            TimeStepSpec._from_json([1, 2, 3])

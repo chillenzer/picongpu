@@ -399,26 +399,42 @@ class TestPicmiSimulation(TestCase):
         metadata_file = Path(outdir) / "metadata" / "picmi_simulation.json"
         assert metadata_file.is_file()
 
-        # valid JSON, dump-validate-dump round-trip identity
+        # valid JSON; a fresh dump of the (unmodified) sim matches the emitted snapshot
         json_data = json.loads(metadata_file.read_text())
         assert json_data == self.sim.model_dump(mode="json")
-        restored = picmi.Simulation.model_validate(json_data)
-        assert restored.model_dump(mode="json") == json_data
 
-    def test_picmi_simulation_json_solver_less_roundtrip(self):
-        """a solver-less simulation round-trips through model_validate"""
-        sim = picmi.Simulation(time_step_size=17, max_steps=4)
-        dump = sim.model_dump(mode="json")
-        restored = picmi.Simulation.model_validate(dump)
-        assert restored.model_dump(mode="json") == dump
+    def test_picmi_simulation_json_snapshot_not_load_back(self):
+        """
+        the dump is a machine-readable *snapshot*: model_validate rehydrates only raw
+        JSON data, so nested picmi objects stay dicts and the result is not runnable
+        (documents why `from_setup` refuses to return such an object)
+        """
+        dump = self.sim.model_dump(mode="json")
+        restored = picmi.Simulation.model_validate(json.loads(json.dumps(dump)))
+        assert isinstance(restored.solver, dict)
+        with pytest.raises(AttributeError):
+            restored.get_as_pypicongpu()
+        with pytest.raises(ValidationError):
+            restored.write_input_file(self.__get_tmpdir_name())
 
-    def test_picmi_simulation_from_setup(self):
-        """Simulation.from_setup reconstructs the picmi Simulation from a setup dir"""
+    def test_picmi_simulation_from_setup_full_reconstruction_unsupported(self):
+        """from_setup raises a clear error instead of returning a broken (non-runnable) object"""
         outdir = self.__get_tmpdir_name()
         self.sim.write_input_file(outdir)
 
+        with pytest.raises(ValueError, match="full load-back reconstruction is not yet supported"):
+            picmi.Simulation.from_setup(outdir)
+
+    def test_picmi_simulation_from_setup_bare_simulation(self):
+        """a bare Simulation (no nested picmi objects) round-trips through from_setup"""
+        sim = picmi.Simulation(time_step_size=17, max_steps=4)
+        outdir = self.__get_tmpdir_name()
+        (Path(outdir) / "metadata").mkdir(parents=True)
+        (Path(outdir) / "metadata" / "picmi_simulation.json").write_text(json.dumps(sim.model_dump(mode="json")))
+
         restored = picmi.Simulation.from_setup(outdir)
-        assert restored.model_dump(mode="json") == self.sim.model_dump(mode="json")
+        assert restored.solver is None
+        assert restored.model_dump(mode="json") == sim.model_dump(mode="json")
 
     def test_picmi_simulation_json_with_timestepspec(self):
         """simulations using TimeStepSpec in diagnostics are serialisable"""
@@ -437,10 +453,12 @@ class TestPicmiSimulation(TestCase):
         period = json_data["diagnostics"][0]["period"]
         assert period == {"specs": [[None, None, 50]], "specs_in_seconds": [], "unit_system": "steps"}
 
-        # round-trips identically, preserving the serialised TimeStepSpec
+        # the emitted dump re-validates (leaf TimeStepSpec reconstructed from JSON form),
+        # while full load-back is honestly rejected (see from_setup tests above)
         restored = picmi.Simulation.model_validate(json_data)
-        assert restored.model_dump(mode="json") == json_data
-        assert restored.diagnostics[0]["period"] == period
+        assert isinstance(restored.diagnostics[0], dict)
+        with pytest.raises(ValueError, match="full load-back reconstruction is not yet supported"):
+            picmi.Simulation.from_setup(outdir)
 
     def test_custom_template_dir_basic_write_input_file(self):
         """providing custom template dir possible or write_input_file"""

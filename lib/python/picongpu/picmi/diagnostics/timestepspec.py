@@ -219,12 +219,27 @@ class TimeStepSpec(metaclass=_TimeStepSpecMeta):
 
     @classmethod
     def _from_json(cls, value: "TimeStepSpec | dict") -> "TimeStepSpec":
+        """
+        reconstruct a TimeStepSpec from its JSON form emitted by `_to_json`.
+
+        :raises ValueError: if the JSON form is malformed (not a dict, missing keys, unknown
+            unit system). Raised as a pydantic ValidationError when used during validation.
+        """
         if isinstance(value, TimeStepSpec):
             return value
+        if not isinstance(value, dict):
+            raise ValueError(f"TimeStepSpec serialisation must be a dict, got {type(value)}")
+        missing = {"specs", "specs_in_seconds"}.difference(value)
+        if missing:
+            raise ValueError(f"TimeStepSpec serialisation missing key(s): {sorted(missing)}")
         ts = cls()
         ts.specs = tuple(cls._spec_from_json(s) for s in value["specs"])
         ts.specs_in_seconds = tuple(cls._spec_from_json(s) for s in value["specs_in_seconds"])
-        ts.unit_system = value.get("unit_system")
+        unit_system = value.get("unit_system")
+        # "mixed" is produced by TimeStepSpec.__add__ of differently-unit'd specs.
+        if unit_system not in (None, "mixed") and unit_system not in TimeStepUnits:
+            raise ValueError(f"Unknown unit system in TimeStepSpec serialisation: {unit_system!r}.")
+        ts.unit_system = unit_system
         return ts
 
     @classmethod

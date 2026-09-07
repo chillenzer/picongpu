@@ -397,9 +397,15 @@ class Runner(BaseModel):
         with (self.metadata_path / filename).open("w") as file:
             json.dump(metadata, file, indent=4)
 
-    def generate(self, printDirToConsole=False, exist_ok=False, **flags):
+    def generate(self, printDirToConsole=False, exist_ok=False, extra_metadata: dict | None = None, **flags):
         """
         generate the picongpu-compatible input files
+
+        @param extra_metadata: dict of filename -> JSON-serialisable content, stored into
+            ``<setup_dir>/metadata/`` next to the pypicongpu metadata files, before the
+            ro-crate is snapshotted (so the crate tracks them too). The caller is expected
+            to have computed the contents *before* calling generate() so that a failure to
+            serialise the extra metadata leaves the setup directory untouched.
         """
 
         if printDirToConsole:
@@ -439,6 +445,8 @@ class Runner(BaseModel):
 
         self.store_metadata(self.model_dump(mode="json"), filename="pypicongpu_runner.json")
         self.store_metadata(rc_params.model_dump(mode="json"), filename="rc_params.json")
+        for filename, metadata in (extra_metadata or {}).items():
+            self.store_metadata(metadata, filename)
 
         self._write_rocrate()
 
