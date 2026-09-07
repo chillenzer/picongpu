@@ -18,7 +18,7 @@ from picongpu.pypicongpu.species.constant.synchrotron import SynchrotronParams
 from picongpu.pypicongpu.species.operation import AnyOperation
 from picongpu.pypicongpu.species.species import Species
 
-from .customuserinput import CustomUserInput
+from .customuserinput import CustomUserInput, check_rendering_context_is_json_serialisable
 from .field_solver import AnySolver
 from .grid import Grid3D
 from .laser import AnyLaser
@@ -135,6 +135,9 @@ class Simulation(RenderedObject, BaseModel):
             custom_rendering_context.update(add_context)
             custom_rendering_context["tags"].extend(tags)
 
+        # re-validate the flat merged form on dump so that entries whose
+        # rendering_context was mutated in place still fail with a clear error
+        check_rendering_context_is_json_serialisable(custom_rendering_context)
         return custom_rendering_context
 
     def spread_directory_information(self, setup_dir):

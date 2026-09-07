@@ -7,7 +7,7 @@ License: GPLv3+
 import pytest
 from pydantic import ValidationError
 
-from picongpu.pypicongpu.customuserinput import CustomUserInput
+from picongpu.pypicongpu.customuserinput import MAX_NESTING_DEPTH, CustomUserInput
 
 _JSON_SERIALISABLE_VALUES = [
     True,
@@ -97,3 +97,53 @@ def test_accepts_flat_merged_form():
     )
     assert restored.tags == ["tag_1", "tag_2"]
     assert restored.rendering_context == {"test_data_1": 1, "nested": {"k": [1, 2, 3]}}
+
+
+def test_rejects_callable_assigned_after_construction():
+    # whole-dict reassignment of the rendering context is validated eagerly
+    custom_input = CustomUserInput(rendering_context={"x": 1})
+    with pytest.raises(ValidationError, match="JSON-serialisable"):
+        custom_input.rendering_context = {"x": lambda x: x}
+
+
+def test_none_assigned_after_construction_is_allowed():
+    custom_input = CustomUserInput(rendering_context={"x": 1})
+    custom_input.rendering_context = None
+    assert custom_input.rendering_context is None
+
+
+def test_in_place_mutation_rejected_at_dump():
+    # in-place mutation of the exposed dict cannot be intercepted by assignment
+    # validation, so dumping re-validates and raises a clear error instead of
+    # the opaque PydanticSerializationError
+    custom_input = CustomUserInput(rendering_context={"x": 1})
+    custom_input.rendering_context["x"] = lambda x: x
+    with pytest.raises(ValueError, match="JSON-serialisable"):
+        custom_input.model_dump(mode="json")
+
+
+def test_in_place_mutation_of_nested_dict_rejected_at_dump():
+    custom_input = CustomUserInput(rendering_context={"nested": {"k": 1}})
+    custom_input.rendering_context["nested"]["k"] = {1, 2}
+    with pytest.raises(ValueError, match="JSON-serialisable"):
+        custom_input.model_dump(mode="json")
+
+
+def test_non_string_dict_key_rejected():
+    with pytest.raises(ValidationError, match="keys must be strings"):
+        CustomUserInput(rendering_context={"nested": {(1, 2): "value"}})
+
+
+def test_non_finite_float_rejected():
+    with pytest.raises(ValidationError, match="not a finite number"):
+        CustomUserInput(rendering_context={"x": float("nan")})
+    with pytest.raises(ValidationError, match="not a finite number"):
+        CustomUserInput(rendering_context={"x": float("inf")})
+
+
+def test_too_deeply_nested_input_rejected_with_clear_error():
+    value = 0
+    for _ in range(MAX_NESTING_DEPTH + 2):
+        value = {"k": value}
+    with pytest.raises(ValidationError, match="nested too deeply"):
+        CustomUserInput(rendering_context=value)

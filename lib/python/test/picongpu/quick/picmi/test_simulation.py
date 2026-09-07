@@ -719,6 +719,18 @@ class TestPicmiSimulation(TestCase):
         self.assertEqual(restored.customuserinput[0].tags, ["tag_1"])
         self.assertEqual(restored.customuserinput[0].rendering_context, {"test_data_1": 1, "nested": {"k": [1, 2, 3]}})
 
+    def test_in_place_mutated_custom_user_input_rejected_at_dump(self):
+        # the value restriction must hold at dump time (pypicongpu_runner.json)
+        # even when the exposed rendering_context dict is mutated in place
+        i = customuserinput.CustomUserInput()
+        i.addToCustomInput({"test_data_1": 1}, "tag_1")
+        self.sim.picongpu_add_custom_user_input(i)
+
+        pysim = self.sim.get_as_pypicongpu()
+        pysim.customuserinput[0].rendering_context["test_data_1"] = lambda x: x
+        with self.assertRaisesRegex(ValueError, "JSON-serialisable"):
+            pysim.model_dump(mode="json")
+
     def test_custom_user_input_rejects_callable(self):
         i = customuserinput.CustomUserInput()
         with self.assertRaisesRegex(ValueError, "JSON-serialisable"):
