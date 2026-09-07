@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 import math
 
-from pydantic import BaseModel, Field, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 from ...pypicongpu import laser
 from ..copy_attributes import default_converts_to
@@ -17,10 +17,13 @@ from .base_laser import BaseLaser, PositiveFloat
 from .polarization_type import PolarizationType
 
 
+_PLANE_WAVE_FOCUS_POSITION = [0.0, 0.0, 0.0]
+
+
 @default_converts_to(
     laser.PlaneWaveLaser,
     conversions={
-        "focal_position": "focus_pos",
+        "focal_position": lambda self: _PLANE_WAVE_FOCUS_POSITION,
         "laser_nofocus_constant_si": lambda self: 0.0,
     },
 )
@@ -48,6 +51,8 @@ class PlaneWaveLaser(BaseModel, BaseLaser):
         Carrier envelope phase (CEP) [rad]
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     wavelength: PositiveFloat
     duration: PositiveFloat
     propagation_direction: Sequence[float]
@@ -70,10 +75,6 @@ class PlaneWaveLaser(BaseModel, BaseLaser):
     @computed_field
     def k0(self) -> float:
         return 2.0 * math.pi / self.wavelength
-
-    @computed_field
-    def focus_pos(self) -> list[float]:
-        return [0.0, 0.0, 0.0]
 
     @model_validator(mode="after")
     def _validate(self):
