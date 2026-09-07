@@ -22,8 +22,10 @@ def _serialise_matrix(values) -> list[dict[Literal["negative", "positive"], int 
 def _normalise_matrix(values, field: str):
     """accept both the nested-sequence and the serialised per-axis dict form to allow round-tripping"""
     if isinstance(values, Iterable) and values and isinstance(values[0], dict):
+        if not all(isinstance(axis, dict) for axis in values):
+            raise ValueError(f"{field=} must contain 'negative' and 'positive' per axis, got {values=}.")
         try:
-            return tuple((axis["negative"], axis["positive"]) for axis in values if isinstance(axis, dict))
+            return tuple((axis["negative"], axis["positive"]) for axis in values)
         except KeyError as error:
             raise ValueError(f"{field=} must contain 'negative' and 'positive' per axis, got {values=}.") from error
     return tuple(tuple(axis) for axis in values)
@@ -80,6 +82,16 @@ class FieldAbsorber(RenderedObject, BaseModel):
     - ``thickness`` mirrors ``NUM_CELLS`` (thickness of the absorbing layer in cells,
       per axis x/y/z and per boundary negative/positive; 0 disables absorption there),
     - ``strength`` mirrors ``exponential::STRENGTH`` (only used for the exponential absorber).
+
+    Emission is kind-independent: the resulting ``fieldAbsorber.param`` always contains
+    every section exactly as in the C++ file, and ``kind`` only selects the command-line
+    option ``--fieldAbsorber`` (default ``pml``, as in the C++ CLI). This mirrors C++,
+    where all sections are always compiled in and the kind is a runtime choice.
+
+    Note that ``thickness_default`` does not drive the default thickness - behaviour is
+    governed by ``NUM_CELLS`` (``thickness``); the C++ ``THICKNESS`` symbol is, as in
+    C++, only a convenience constant that the render keeps verbatim whenever a cell count
+    equals it (which is what keeps the default render byte-equal to the static param file).
 
     The absorbing layer lies inside the global domain near the outer borders.
     """

@@ -67,9 +67,10 @@ class Cartesian3DGrid(picmistandard.PICMI_Cartesian3DGrid):
     carries the absorber kind and the NUM_CELLS[3][2]-shaped thickness, mirroring
     include/picongpu/param/fieldAbsorber.param
 
-    takes precedence over the standard ``pml_cells`` grid field: if both are set,
-    a ValueError is raised; if only ``pml_cells`` is set, it is used as the per-axis
-    symmetric thickness of otherwise default absorber.
+    takes precedence over the standard ``pml_cells`` grid field: setting both is an
+    error - one value per direction is genuinely ambiguous, so neither is applied;
+    if only ``pml_cells`` is set, it is used as the per-axis symmetric thickness of
+    an otherwise default absorber.
     """
 
     @computed_field
@@ -108,8 +109,8 @@ class Cartesian3DGrid(picmistandard.PICMI_Cartesian3DGrid):
 
         if self.pml_cells is not None and self.picongpu_field_absorber is not None:
             raise ValueError(
-                "pml_cells and picongpu_field_absorber are two ways to configure the field absorber; "
-                "please use only one of them (picongpu_field_absorber takes precedence)."
+                "pml_cells and picongpu_field_absorber are two conflicting ways to configure the "
+                "field absorber; set only one of them."
             )
         if self.pml_cells is not None:
             if len(self.pml_cells) != 3 or not all(isinstance(n, int) and n >= 0 for n in self.pml_cells):
@@ -162,8 +163,8 @@ class Cartesian3DGrid(picmistandard.PICMI_Cartesian3DGrid):
         translate the absorber configuration to a pypicongpu FieldAbsorber, or None
 
         The standard ``pml_cells`` field is honoured as per-axis symmetric thickness
-        (PICMI Option 1 sugar); the fully faithful ``picongpu_field_absorber`` object takes
-        precedence, i.e. it is passed through unchanged.
+        (PICMI Option 1 sugar); the fully faithful ``picongpu_field_absorber`` object,
+        when given (setting both is rejected by ``check()``), is passed through unchanged.
 
         :return: a pypicongpu FieldAbsorber or None (meaning: keep the pypicongpu defaults)
         """

@@ -37,7 +37,10 @@ def test_round_trip():
     """model_dump -> model_validate yields an equal model and an identical dump"""
     for kind in ("pml", "exponential"):
         absorber = FieldAbsorber(
-            kind=kind, thickness=((13, 0), (4, 12), (32, 32)), strength=((0.5, 0.25), (1e-2, 1e-2), (1e-3, 2.5e-3))
+            kind=kind,
+            thickness_default=32,
+            thickness=((13, 0), (4, 12), (32, 32)),
+            strength=((0.5, 0.25), (1e-2, 1e-2), (1e-3, 2.5e-3)),
         )
         dump = absorber.model_dump(mode="json")
         reparsed = FieldAbsorber.model_validate(dump)
@@ -60,6 +63,17 @@ def test_validation_wrong_shape():
         FieldAbsorber(thickness=((12, 12), (12, 12)))
     with pytest.raises(ValidationError):
         FieldAbsorber(strength=((1e-3, 1e-3, 1e-3), (1e-3, 1e-3, 1e-3), (1e-3, 1e-3, 1e-3)))
+
+
+def test_validation_malformed_dict_form_rows():
+    """dict-form matrix with a non-dict row or missing keys is reported, not silently filtered"""
+    message = ".*must contain 'negative' and 'positive' per axis.*"
+    with pytest.raises(ValidationError, match=message):
+        FieldAbsorber(thickness=[{"negative": 12, "positive": 0}, (12, 12), {"negative": 12, "positive": 12}])
+    with pytest.raises(ValidationError, match=message):
+        FieldAbsorber(thickness=[{"negative": 12, "positive": 12}, {"positive": 12}, {"negative": 12, "positive": 12}])
+    with pytest.raises(ValidationError, match=message):
+        FieldAbsorber(thickness=[{"negative": 12, "positive": 12}, {"negative": 12, "positive": 12}, {"positive": 12}])
 
 
 def test_format_cpp_float():

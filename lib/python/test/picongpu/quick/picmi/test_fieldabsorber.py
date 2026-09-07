@@ -63,8 +63,8 @@ def test_field_absorber_asymmetric():
     assert absorber.thickness == ((13, 0), (4, 12), (32, 32))
 
 
-def test_field_absorber_takes_precedence_over_pml_cells():
-    """providing both sources of truth for the same number is rejected"""
+def test_field_absorber_conflicts_with_pml_cells():
+    """providing both sources of truth for the same number is rejected (neither wins)"""
     field_absorber = pypicongpu.fieldabsorber.FieldAbsorber(kind="exponential")
     with pytest.raises(ValueError, match=".*only one of them.*"):
         _sim(_grid(pml_cells=[12, 12, 12], picongpu_field_absorber=field_absorber)).get_as_pypicongpu()
