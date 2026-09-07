@@ -168,3 +168,62 @@ def validate_absorber_matrix(values, *, field: str):
     for axis in values:
         validate_all_ge(axis, 0, field=field)
     return values
+
+
+_AXIS_NAMES = ("x", "y", "z")
+_BOUNDARY_NAMES = ("min", "max")
+
+
+def validate_huygens_against_absorber(
+    positions,
+    absorber_thickness_by_axis_boundary,
+    solver_margin: int = 1,
+    moving_window: bool = False,
+):
+    """
+    Check that a Huygens surface is far enough away from each global-domain boundary.
+
+    Mirrors the C++ run-time check in include/picongpu/fields/incidentField/Solver.hpp
+    (checkRequirements): for every axis d and boundary b the distance of the Huygens
+    surface from the respective global-domain boundary must be at least
+
+        absorber_thickness(d, b) + solver_margin - 1
+
+    cells, where ``solver_margin`` is the field solver's ``FDTD_spatial_order / 2``
+    (Yee/order-2 ``=> 1``, i.e. the required offset equals the absorber thickness alone).
+
+    Positions use the C++ convention: the ``min`` (negative boundary) entry is the
+    distance in cells from the min edge of the global domain, the ``max`` (positive
+    boundary) entry is negative and its magnitude is the distance from the max edge
+    (``-positions[d][1]``).
+
+    The YMax boundary (positive y) is exempt from the check when the moving window is
+    enabled, as in the C++ check.
+
+    :param positions: Huygens surface positions, shape [3][2] (axis x/y/z, boundary min/max)
+    :param absorber_thickness_by_axis_boundary: absorber thickness per (axis, boundary), shape [3][2]
+    :param solver_margin: FDTD_spatial_order / 2 of the field solver (default 1 for Yee)
+    :param moving_window: whether the moving window is enabled (exempts YMax)
+    :raise ValueError: if any (axis, boundary) is too close to the boundary; all violations
+                       are collected into a single error message
+    """
+    validate_nested_3x2_shape(positions, field="huygens_surface_positions")
+    validate_nested_3x2_shape(absorber_thickness_by_axis_boundary, field="absorber_thickness")
+    violations = []
+    for axis in range(3):
+        for boundary in range(2):
+            if moving_window and axis == 1 and boundary == 1:
+                continue
+            required = absorber_thickness_by_axis_boundary[axis][boundary] + solver_margin - 1
+            distance = positions[axis][boundary] if boundary == 0 else -positions[axis][1]
+            if distance < required:
+                violations.append(
+                    f"axis '{_AXIS_NAMES[axis]}' at the '{_BOUNDARY_NAMES[boundary]}' boundary must be "
+                    f"at least {required} cells away, but is only {distance} cells away"
+                )
+    if violations:
+        raise ValueError(
+            "Huygens surface too close to a global-domain boundary for the used field solver and absorber: "
+            + "; ".join(violations)
+        )
+    return positions
