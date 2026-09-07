@@ -18,7 +18,7 @@ on pypicongpu), so duplicated validation lives in exactly one place.
 import math
 import re
 
-from picongpu.pypicongpu.vector import deserialise_vec
+from .vector import deserialise_vec
 
 _CPP_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _CPP_IDENTIFIER_WITH_PREFIX = re.compile(r"^[A-Za-z0-9_]+$")

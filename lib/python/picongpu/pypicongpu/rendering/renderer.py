@@ -65,7 +65,7 @@ class Renderer:
                     if type(elem) is dict:
                         Renderer.__check_rendering_context_recursive("{}[{}]".format(path, i), elem)
                     elif type(elem) in [str, bool, type(None), int, float]:
-                        if elem in [math.inf, -math.inf, math.nan]:
+                        if type(elem) in [int, float] and (math.isinf(elem) or math.isnan(elem)):
                             raise ValueError("invalid value for leaf: {} at {}.{}".format(value, path, key))
                     else:
                         raise TypeError(
@@ -75,8 +75,7 @@ class Renderer:
                         )
             else:
                 # leaf
-                invalid_floats = [math.inf, -math.inf, math.nan]
-                if value in invalid_floats:
+                if type(value) in [int, float] and (math.isinf(value) or math.isnan(value)):
                     raise ValueError("invalid value for leaf: {} at {}.{}".format(value, path, key))
 
                 allowed_types = [str, bool, type(None), int, float]
@@ -98,8 +97,9 @@ class Renderer:
         Performs if the given object is acceptable as rendering context:
         - is dict
         - leafs are string, boolean, None, int, or float (or empty list)
-        - child nodes are leaf, set or list
-        - list items must be dict
+        - child nodes are leaf or list
+        - list items are dicts or leaves (string, boolean, None, or number),
+          the latter covering arbitrary-length numeric sequences
         - keys are strings
         - keys do *not* contain dot (.)
         - keys do *not* begin with underscore (_) -> reserved for preprocessor

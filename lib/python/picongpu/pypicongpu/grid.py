@@ -88,6 +88,8 @@ class Grid3D(BaseModel, RenderedObject):
     ] = None
     """distribution of grid cells to GPUs for each axis"""
 
+    # strictly positive on purpose: like cell_size/cell_cnt/gpu_cnt a super cell is a per-axis
+    # cell count, and a non-positive value would emit invalid C++ (picmi already enforces >= 1)
     super_cell_size: Annotated[Vec3_int, AfterValidator(lambda x: all_positive(x, field="super_cell_size"))]
     """size of super cell in x y and z direction as 3-integer tuple in cells"""
 

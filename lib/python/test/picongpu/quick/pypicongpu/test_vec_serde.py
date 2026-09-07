@@ -35,6 +35,11 @@ def test_deserialise_vec_accepts_all_input_forms():
     assert deserialise_vec({"x": 1.0, "y": 2.0, "z": 3.0}) == (1.0, 2.0, 3.0)
     assert deserialise_vec([1.0, 2.0, 3.0]) == (1.0, 2.0, 3.0)
     assert deserialise_vec((1.0, 2.0, 3.0)) == (1.0, 2.0, 3.0)
+    # general iterables (numpy arrays, generators) are accepted as well
+    import numpy
+
+    assert deserialise_vec(numpy.array([1.0, 2.0, 3.0])) == (1.0, 2.0, 3.0)
+    assert deserialise_vec(x for x in [1.0, 2.0, 3.0]) == (1.0, 2.0, 3.0)
 
 
 def test_deserialise_vec_rejects_missing_keys():

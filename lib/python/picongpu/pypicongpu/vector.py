@@ -28,8 +28,9 @@ def serialise_vec(value) -> dict:
 def deserialise_vec(value):
     """inverse of :func:`serialise_vec`.
 
-    Accepts the serialised ``{x, y, z}`` dict as well as a plain list or tuple
-    (as fed e.g. by PICMI), always returning a 3-tuple.
+    Accepts the serialised ``{x, y, z}`` dict as well as any 3-element iterable
+    (list, tuple, numpy array, ... -- as fed e.g. by PICMI), always returning a
+    3-tuple.
     """
     if isinstance(value, dict):
         try:
@@ -37,7 +38,10 @@ def deserialise_vec(value):
         except KeyError as error:
             raise ValueError(f"Expected a vector with the keys x, y, z. You gave: {value=}.") from error
     if not isinstance(value, (list, tuple)):
-        raise TypeError(f"Expected a vector (list or tuple of length 3). You gave: {value=}.")
+        try:
+            value = tuple(value)
+        except (TypeError, ValueError) as error:
+            raise TypeError(f"Expected a vector (iterable of length 3). You gave: {value=}.") from error
     if len(value) != 3:
         raise ValueError(f"Expected a vector of length 3. You gave: {value=}.")
     return tuple(value)

@@ -28,7 +28,9 @@ class BinSpec(RenderedObject, BaseModel):
 
 
 class BinningAxis(RenderedObject, BaseModel):
-    axis_name: Annotated[str, AfterValidator(partial(validate_cpp_identifier, field="axis_name"))] = Field(alias="name")
+    axis_name: Annotated[str, AfterValidator(partial(validate_cpp_identifier, field="axis_name", prefix="axis_"))] = (
+        Field(alias="name")
+    )
     bin_spec_raw: BinSpec = Field(exclude=True)
     axis_functor: ParticleFunctor = Field(alias="functor")
     use_overflow_bins: bool
