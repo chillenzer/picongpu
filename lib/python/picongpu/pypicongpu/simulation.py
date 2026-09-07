@@ -20,6 +20,7 @@ from picongpu.pypicongpu.species.species import Species
 
 from .customuserinput import CustomUserInput
 from .field_solver import AnySolver
+from .fieldabsorber import FieldAbsorber
 from .grid import Grid3D
 from .laser import AnyLaser
 from .movingwindow import MovingWindow
@@ -86,6 +87,16 @@ class Simulation(RenderedObject, BaseModel):
     synchrotron_params: SynchrotronParams = SynchrotronParams()
     collisional_physics: CollisionalPhysicsSetup = CollisionalPhysicsSetup()
     particle_filters: list[ParticleFunctor] = Field(default_factory=list)
+
+    field_absorber: FieldAbsorber = Field(default_factory=FieldAbsorber)
+    """
+    field absorber configuration
+
+    rendered into include/picongpu/param/fieldAbsorber.param and the
+    --fieldAbsorber command line option
+
+    defaults mirror the static fieldAbsorber.param
+    """
 
     @field_validator("output", mode="after")
     @classmethod

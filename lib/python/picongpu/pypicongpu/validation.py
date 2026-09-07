@@ -5,6 +5,11 @@ Authors: Julian Lenz
 License: GPLv3+
 """
 
+from collections.abc import Iterable
+from typing import TypeVar
+
+T = TypeVar("T")
+
 
 def validate_huygens_surface_positions(huygens_surface_positions, cell_cnt=None, moving_window_enabled=False):
     """
@@ -105,3 +110,61 @@ def validate_huygens_surface_positions(huygens_surface_positions, cell_cnt=None,
                 )
 
     return huygens_surface_positions
+
+
+def validate_all_ge(values: Iterable | T, threshold: float | int, *, field: str) -> Iterable | T:
+    """
+    Check that every scalar in the iterable is greater than or equal to threshold, or return the scalar unchanged.
+
+    Passes a non-iterable through untouched so that the same helper can wrap scalar fields.
+
+    :param values: iterable of numbers or a single number
+    :param threshold: inclusive lower bound
+    :param field: name of the validated field, used in the error message
+    :raise ValueError: if any element is smaller than threshold
+    :return: the input unchanged
+    """
+    if isinstance(values, Iterable):
+        if wrong := [x for x in values if x < threshold]:
+            message = (
+                f"{field=} contains values < {threshold=}, which is not allowed. The offending values are {wrong=}."
+            )
+            raise ValueError(message)
+    return values
+
+
+def validate_nested_3x2_shape(values, *, field: str):
+    """
+    Check that the given nested structure has the shape [3][2].
+
+    Intended to mirror the C++ ``constexpr T[NUM_CELLS[3][2]]`` (.param) grids,
+    i.e. three axes, each with an (negative, positive) boundary pair.
+
+    :param values: nested iterable of shape [3][2]
+    :param field: name of the validated field, used in the error message
+    :raise ValueError: if the structure does not have shape [3][2]
+    :return: the input unchanged
+    """
+    try:
+        flattened = [values[axis][boundary] for axis in range(3) for boundary in range(2)]
+    except (IndexError, TypeError) as error:
+        raise ValueError(f"{field=} must have shape [3][2], but got {values=}.") from error
+    return flattened
+
+
+def validate_absorber_matrix(values, *, field: str):
+    """
+    Validate a per-axis x per-boundary "[3][2]" matrix, mirroring NUM_CELLS / exponential::STRENGTH.
+
+    Every entry must be present and (for NUM_CELLS thickness) greater than or equal to 0; the
+    STRENGTH of the exponential absorber is bounded from below by 0 as well.
+
+    :param values: nested structure of shape [3][2]
+    :param field: name of the validated field, used in the error message
+    :raise ValueError: on wrong shape or negative entries
+    :return: the input unchanged
+    """
+    validate_nested_3x2_shape(values, field=field)
+    for axis in values:
+        validate_all_ge(axis, 0, field=field)
+    return values

@@ -419,6 +419,9 @@ class Simulation(picmistandard.PICMI_Simulation):
             CollisionalPhysicsSetup()
         ]
 
+        field_absorber = self.solver.grid.get_as_pypicongpu_field_absorber()
+        absorber_kwarg = {"field_absorber": field_absorber} if field_absorber is not None else {}
+
         return pypicongpu.simulation.Simulation(
             species=map(get_as_pypicongpu, sorted(self.species)),
             init_operations=init_operations,
@@ -437,6 +440,7 @@ class Simulation(picmistandard.PICMI_Simulation):
             base_density=self._get_base_density(),
             synchrotron_params=synchrotron_params[0],
             collisional_physics=collisions[0].get_as_pypicongpu(),
+            **absorber_kwarg,
         )
 
     def _get_base_density(self) -> float:
