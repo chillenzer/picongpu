@@ -8,6 +8,8 @@ License: GPLv3+
 from enum import Enum, EnumMeta
 from math import ceil
 
+from pydantic_core import core_schema
+
 from ...pypicongpu.output import TimeStepSpec as PyPIConGPUTimeStepSpec
 
 
@@ -197,4 +199,58 @@ class TimeStepSpec(metaclass=_TimeStepSpecMeta):
                 self._interpret_negatives(self._interpret_nones(s), num_steps)
                 for s in self.specs + self._transform_to_steps(self.specs_in_seconds, time_step_size)
             ]
+        )
+
+    @staticmethod
+    def _spec_to_json(spec: slice) -> list[int | float | None]:
+        return [spec.start, spec.stop, spec.step]
+
+    @staticmethod
+    def _spec_from_json(value: list[int | float | None] | slice) -> slice:
+        return value if isinstance(value, slice) else slice(*value)
+
+    @classmethod
+    def _to_json(cls, ts: "TimeStepSpec") -> dict:
+        return {
+            "specs": [cls._spec_to_json(s) for s in ts.specs],
+            "specs_in_seconds": [cls._spec_to_json(s) for s in ts.specs_in_seconds],
+            "unit_system": ts.unit_system,
+        }
+
+    @classmethod
+    def _from_json(cls, value: "TimeStepSpec | dict") -> "TimeStepSpec":
+        """
+        reconstruct a TimeStepSpec from its JSON form emitted by `_to_json`.
+
+        :raises ValueError: if the JSON form is malformed (not a dict, missing keys, unknown
+            unit system). Raised as a pydantic ValidationError when used during validation.
+        """
+        if isinstance(value, TimeStepSpec):
+            return value
+        if not isinstance(value, dict):
+            raise ValueError(f"TimeStepSpec serialisation must be a dict, got {type(value)}")
+        missing = {"specs", "specs_in_seconds"}.difference(value)
+        if missing:
+            raise ValueError(f"TimeStepSpec serialisation missing key(s): {sorted(missing)}")
+        ts = cls()
+        ts.specs = tuple(cls._spec_from_json(s) for s in value["specs"])
+        ts.specs_in_seconds = tuple(cls._spec_from_json(s) for s in value["specs_in_seconds"])
+        unit_system = value.get("unit_system")
+        # "mixed" is produced by TimeStepSpec.__add__ of differently-unit'd specs.
+        if unit_system not in (None, "mixed") and unit_system not in TimeStepUnits:
+            raise ValueError(f"Unknown unit system in TimeStepSpec serialisation: {unit_system!r}.")
+        ts.unit_system = unit_system
+        return ts
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler) -> core_schema.CoreSchema:
+        """
+        Make TimeStepSpec usable as a pydantic field: validates from the JSON
+        representation emitted by `_to_json` (or passes through an instance) and
+        serialises slices as `[start, stop, step]` lists so that `model_dump`
+        of any diagnostic carrying a TimeStepSpec no longer fails.
+        """
+        return core_schema.no_info_plain_validator_function(
+            cls._from_json,
+            serialization=core_schema.plain_serializer_function_ser_schema(cls._to_json, when_used="json"),
         )

@@ -7,6 +7,7 @@ License: GPLv3+
 
 # make pypicongpu classes accessible for conversion to pypicongpu
 import datetime
+import json
 import logging
 import math
 from functools import reduce
@@ -14,7 +15,7 @@ from itertools import chain, groupby
 from os import PathLike
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Self
 
 import picmistandard
 from pydantic import AfterValidator, BeforeValidator, BaseModel, ConfigDict, Field, PrivateAttr, model_validator
@@ -212,8 +213,12 @@ class Simulation(picmistandard.PICMI_Simulation):
     def _post_init(self):
         # additional PICMI stuff checks, @todo move to picmistandard, Brian Marre, 2024
         ## throw if both cfl & delta_t are set
+        # picmistandard types `solver` as `Any`, so during `model_validate` (e.g. the
+        # `from_setup` load-back) the solver is still a raw dict when this after-validator
+        # runs, carrying no `.method`/`.grid`, and recomputation would crash. Additionally
+        # both cfl and delta_t are stored in the dump, so nothing needs to be recomputed.
         if (
-            self.solver is not None
+            isinstance(self.solver, BaseModel)
             and self.solver.method in ["Yee", "Lehe"]
             and isinstance(self.solver.grid, Cartesian3DGrid)
         ):
@@ -302,7 +307,78 @@ class Simulation(picmistandard.PICMI_Simulation):
         self._runner = Runner(
             sim=self, template_dir=self.picongpu_template_dir or (templates.path(),), setup_dir=Path(file_name)
         )
-        self._runner.generate(exist_ok=exist_ok, **flags)
+        # Serialise the picmi Simulation *before* anything is written to disk so that a
+        # serialisation failure fails fast with zero side effects. The serialised form is a
+        # machine-readable snapshot of the picmi-level input (see `from_setup`); it is handed
+        # to the Runner so the single ro-crate snapshot (taken inside `generate`) tracks it.
+        self._runner.generate(
+            exist_ok=exist_ok, extra_metadata={"picmi_simulation.json": self.model_dump(mode="json")}, **flags
+        )
+
+    @classmethod
+    def from_setup(cls, setup_dir: str | Path) -> Self:
+        """
+        read the picmi Simulation snapshot from a previously generated setup
+
+        reads `metadata/picmi_simulation.json` from the given setup directory and returns the
+        picmi-level Simulation it was serialised from (see `write_input_file`).
+
+        @attention this is currently a *snapshot* reconstruction, not a full load-back:
+            `metadata/picmi_simulation.json` is a machine-readable snapshot of the picmi-level
+            input, but nested picmi objects (`solver`, `diagnostics`, `species`, ...) are
+            serialised as plain JSON data and are NOT re-instantiated. A Simulation whose
+            nested objects are raw dicts is not directly runnable (`get_as_pypicongpu` /
+            `write_input_file` would fail), so `from_setup` raises instead of silently
+            returning such a broken object. Full load-back reconstruction is tracked as
+            follow-up work (TT-06, https://github.com/chillenzer/picongpu/issues/66 - partial
+            / re-open of the load-back part of
+            https://github.com/chillenzer/picongpu/issues/35); if you need to reconstruct a
+            *runnable* setup, use the pypicongpu-level
+            `metadata/pypicongpu_runner.json` instead.
+
+        @note picongpu_custom_user_input is deliberately absent from
+            `metadata/picmi_simulation.json` (it is omitted from the model dump
+            because it may hold non-serializable user data). It is carried, in
+            flattened form, by the pypicongpu-level `metadata/pypicongpu_runner.json`
+            instead. Re-inclusion in the picmi dump is tracked by TT-04
+            (https://github.com/chillenzer/picongpu/issues/33).
+
+        :raises ValueError: if the snapshot cannot be turned into a usable Simulation
+            (i.e. any nested picmi object would remain an un-reconstructed raw dict)
+        """
+        metadata_file = Path(setup_dir) / "metadata" / "picmi_simulation.json"
+        with metadata_file.open() as file:
+            return cls._validate_snapshot_usable(cls.model_validate(json.load(file)))
+
+    @staticmethod
+    def _validate_snapshot_usable(sim: "Simulation") -> "Simulation":
+        # The picmistandard base types `solver` as `Any` and `diagnostics`, `species`,
+        # `layouts`, `lasers`, `interactions` as untyped lists, so a `model_validate` round
+        # trip leaves any present nested object as a raw dict. Such a Simulation is not a
+        # functional reconstruction (it would crash in `get_as_pypicongpu`/`write_input_file`),
+        # so refuse to hand it out silently.
+        not_reconstructed = ["solver"] if isinstance(sim.solver, dict) else []
+        for field in (
+            "diagnostics",
+            "species",
+            "layouts",
+            "lasers",
+            "interactions",
+            "picongpu_distributions",
+            "picongpu_interaction",
+        ):
+            if any(isinstance(entry, dict) for entry in getattr(sim, field, ())):
+                not_reconstructed.append(field)
+        if not_reconstructed:
+            raise ValueError(
+                "from_setup(): full load-back reconstruction is not yet supported. "
+                f"The nested picmi object(s) {not_reconstructed} were serialised as plain JSON "
+                "data and would not be re-instantiated into picmi objects, so the result is not "
+                "directly runnable. For inspection, read metadata/picmi_simulation.json directly; "
+                "to reconstruct a runnable setup, use the pypicongpu-level "
+                "metadata/pypicongpu_runner.json."
+            )
+        return sim
 
     def picongpu_add_custom_user_input(self, custom_user_input: pypicongpu.customuserinput.CustomUserInput):
         """add custom user input to previously stored input"""
