@@ -15,7 +15,7 @@ from itertools import chain, groupby
 from os import PathLike
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Self
 
 import picmistandard
 from pydantic import AfterValidator, BeforeValidator, BaseModel, ConfigDict, Field, PrivateAttr, model_validator
@@ -213,7 +213,9 @@ class Simulation(picmistandard.PICMI_Simulation):
     def _post_init(self):
         # additional PICMI stuff checks, @todo move to picmistandard, Brian Marre, 2024
         ## throw if both cfl & delta_t are set
-        # During (de)serialisation the solver is still a raw dict when this validator runs;
+        # picmistandard types `solver` as `Any`, so during `model_validate` (e.g. the
+        # `from_setup` load-back) the solver is still a raw dict when this after-validator
+        # runs, carrying no `.method`/`.grid`, and recomputation would crash. Additionally
         # both cfl and delta_t are stored in the dump, so nothing needs to be recomputed.
         if (
             isinstance(self.solver, BaseModel)
@@ -314,7 +316,7 @@ class Simulation(picmistandard.PICMI_Simulation):
         )
 
     @classmethod
-    def from_setup(cls, setup_dir: str | Path) -> "Simulation":
+    def from_setup(cls, setup_dir: str | Path) -> Self:
         """
         read the picmi Simulation snapshot from a previously generated setup
 
@@ -328,15 +330,18 @@ class Simulation(picmistandard.PICMI_Simulation):
             nested objects are raw dicts is not directly runnable (`get_as_pypicongpu` /
             `write_input_file` would fail), so `from_setup` raises instead of silently
             returning such a broken object. Full load-back reconstruction is tracked as
-            follow-up work (TT-06 partial / re-open of the load-back part of issue #35); if
-            you need to reconstruct a *runnable* setup, use the pypicongpu-level
+            follow-up work (TT-06, https://github.com/chillenzer/picongpu/issues/66 - partial
+            / re-open of the load-back part of
+            https://github.com/chillenzer/picongpu/issues/35); if you need to reconstruct a
+            *runnable* setup, use the pypicongpu-level
             `metadata/pypicongpu_runner.json` instead.
 
         @note picongpu_custom_user_input is deliberately absent from
             `metadata/picmi_simulation.json` (it is omitted from the model dump
             because it may hold non-serializable user data). It is carried, in
             flattened form, by the pypicongpu-level `metadata/pypicongpu_runner.json`
-            instead. Re-inclusion in the picmi dump is tracked by TT-04.
+            instead. Re-inclusion in the picmi dump is tracked by TT-04
+            (https://github.com/chillenzer/picongpu/issues/33).
 
         :raises ValueError: if the snapshot cannot be turned into a usable Simulation
             (i.e. any nested picmi object would remain an un-reconstructed raw dict)
