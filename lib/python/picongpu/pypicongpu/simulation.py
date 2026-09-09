@@ -24,6 +24,7 @@ from .grid import Grid3D
 from .laser import AnyLaser
 from .movingwindow import MovingWindow
 from .output import AnyPlugin, OpenPMDPlugin
+from .poissonsolver import PoissonSolver
 from .rendering import RenderedObject
 from .walltime import Walltime
 
@@ -72,6 +73,9 @@ class Simulation(RenderedObject, BaseModel):
 
     moving_window: MovingWindow | None
     """used moving Window, set to None to disable"""
+
+    poisson_solver: PoissonSolver | None
+    """used Poisson solver to compute the initial electric field, set to None to disable"""
 
     walltime: Walltime
     """time limit of the simulation run"""

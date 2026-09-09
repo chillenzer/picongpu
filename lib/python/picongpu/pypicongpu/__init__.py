@@ -9,6 +9,7 @@ from .output.checkpoint import Checkpoint
 from .output.energy_histogram import EnergyHistogram
 from .output.macro_particle_count import MacroParticleCount
 from .output.phase_space import PhaseSpace
+from .poissonsolver import PoissonSolver
 from .runner import Runner
 from .simulation import Simulation
 
@@ -20,6 +21,7 @@ __all__ = [
     "rendering",
     "YeeSolver",
     "LeheSolver",
+    "PoissonSolver",
     "species",
     "util",
     "grid",
