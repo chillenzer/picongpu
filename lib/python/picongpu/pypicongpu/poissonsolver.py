@@ -57,3 +57,8 @@ class PoissonSolver(RenderedObject, BaseModel):
     @computed_field
     def preconditioner_disabled(self) -> bool:
         return self.preconditioner == "none"
+
+    @computed_field
+    def tolerance_rendered(self) -> str:
+        """shortest exact decimal representation of the tolerance (as a C++ literal)"""
+        return repr(self.tolerance)

@@ -117,7 +117,45 @@ def test_write_input_file_activates_solver():
         n_cfg = (outdir / "etc/picongpu/N.cfg").read_text()
         assert "--poisson.activate" in n_cfg
         assert "--poisson.maxSteps 2000" in n_cfg
-        assert "--poisson.tolerance 1.0e-8" in n_cfg
+        assert "--poisson.tolerance 1e-08" in n_cfg
+        assert "--poisson.tolerance 1.0e-8" not in n_cfg
+
+
+def test_write_input_file_preconditioner_disable_flag():
+    """disabling the preconditioner emits only the disable flag, not maxSteps"""
+    sim = _sim(
+        picongpu_electrostatic_solver=picmi.ElectrostaticSolver(
+            preconditioner="none", preconditioner_maximum_iterations=5
+        )
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outdir = Path(tmpdir) / "out"
+        sim.write_input_file(outdir)
+        n_cfg = (outdir / "etc/picongpu/N.cfg").read_text()
+        assert "--poisson.preconditioner.disable" in n_cfg
+        assert "--poisson.preconditioner.maxSteps" not in n_cfg
+
+
+def test_write_input_file_non_default_tolerance_is_clean():
+    """a non-default tolerance renders as a clean decimal literal, not binary noise"""
+    sim = _sim(picongpu_electrostatic_solver=picmi.ElectrostaticSolver(required_precision=1e-6))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outdir = Path(tmpdir) / "out"
+        sim.write_input_file(outdir)
+        n_cfg = (outdir / "etc/picongpu/N.cfg").read_text()
+        assert "--poisson.tolerance 1e-06" in n_cfg
+        assert "9.9999999999999995e-7" not in n_cfg
+
+
+def test_write_input_file_default_preconditioner_max_steps():
+    """with the default preconditioner, maxSteps is emitted"""
+    sim = _sim(picongpu_electrostatic_solver=picmi.ElectrostaticSolver())
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outdir = Path(tmpdir) / "out"
+        sim.write_input_file(outdir)
+        n_cfg = (outdir / "etc/picongpu/N.cfg").read_text()
+        assert "--poisson.preconditioner.disable" not in n_cfg
+        assert "--poisson.preconditioner.maxSteps 20" in n_cfg
 
 
 def test_write_input_file_disabled_has_no_flag():
@@ -128,3 +166,38 @@ def test_write_input_file_disabled_has_no_flag():
         sim.write_input_file(outdir)
         n_cfg = (outdir / "etc/picongpu/N.cfg").read_text()
         assert "--poisson" not in n_cfg
+
+
+def test_electrostatic_solver_rejected_as_em_solver():
+    """the PICMI-standard solver= slot rejects ElectrostaticSolver with a clear error"""
+    with pytest.raises(AttributeError, match="picongpu_electrostatic_solver"):
+        picmi.Simulation(
+            time_step_size=1.39e-16,
+            max_steps=32,
+            solver=picmi.ElectrostaticSolver(),
+        )
+
+
+def test_electrostatic_solver_grid_must_match_em_solver_grid():
+    """a mismatched grid on the electrostatic solver is rejected"""
+    mismatched = picmi.ElectrostaticSolver(grid=_grid(number_of_cells=[1, 2, 3]))
+    with pytest.raises(ValueError, match="must match the grid"):
+        _sim(picongpu_electrostatic_solver=mismatched)
+
+
+def test_electrostatic_solver_same_grid_accepted():
+    """passing the same grid as the electromagnetic solver is accepted"""
+    grid = _grid()
+    sim = picmi.Simulation(
+        time_step_size=1.39e-16,
+        max_steps=32,
+        solver=picmi.ElectromagneticSolver(method="Yee", grid=grid),
+        picongpu_electrostatic_solver=picmi.ElectrostaticSolver(grid=grid),
+    )
+    assert sim.get_as_pypicongpu().poisson_solver == pypicongpu.PoissonSolver()
+
+
+def test_electrostatic_solver_default_grid_accepted():
+    """omitting the grid on the electrostatic solver is accepted (uses EM solver grid)"""
+    sim = _sim(picongpu_electrostatic_solver=picmi.ElectrostaticSolver())
+    assert sim.get_as_pypicongpu().poisson_solver == pypicongpu.PoissonSolver()

@@ -230,7 +230,44 @@ class Simulation(picmistandard.PICMI_Simulation):
             and isinstance(self.solver.grid, Cartesian3DGrid)
         ):
             self.__yee_compute_cfl_or_delta_t()
+        self.__check_poisson_solver_attachment()
         return self
+
+    def __check_poisson_solver_attachment(self) -> None:
+        """
+        check that the electrostatic/poisson solver is attached correctly
+
+        The PICMI standard attaches the electrostatic solver via
+        ``Simulation.solver``. PIConGPU instead keeps the electromagnetic
+        solver there and attaches :class:`picmi.ElectrostaticSolver` via the
+        ``picongpu_electrostatic_solver`` parameter, so the standard usage is a
+        user error that must be reported clearly instead of a confusing
+        ``AttributeError`` further down the line.
+        """
+        if isinstance(self.solver, ElectrostaticSolver):
+            raise AttributeError(
+                "ElectrostaticSolver was passed as Simulation.solver. "
+                "Simulation.solver is the *electromagnetic* solver of the "
+                "simulation. Attach the electrostatic solver (initial electric "
+                "field) via Simulation(picongpu_electrostatic_solver=...)."
+            )
+        if self.picongpu_electrostatic_solver is None:
+            return
+        if self.solver is None:
+            raise AttributeError(
+                "picongpu_electrostatic_solver requires an electromagnetic "
+                "Simulation.solver to run on; Simulation.solver is None."
+            )
+        electrostatic_grid = self.picongpu_electrostatic_solver.grid
+        if electrostatic_grid is not None and electrostatic_grid != self.solver.grid:
+            raise ValueError(
+                "The grid of picongpu_electrostatic_solver must match the grid "
+                "of the electromagnetic Simulation.solver; got "
+                f"{getattr(electrostatic_grid, 'number_of_cells', electrostatic_grid)!r} != "
+                f"{getattr(self.solver.grid, 'number_of_cells', self.solver.grid)!r}. "
+                "The Poisson solver runs on the electromagnetic solver's grid; "
+                "omit the grid argument (or pass the same grid object)."
+            )
 
     def __yee_compute_cfl_or_delta_t(self) -> None:
         """

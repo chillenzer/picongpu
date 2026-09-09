@@ -130,7 +130,7 @@ Parameters/Methods prefixed with ``picongpu_`` are PIConGPU-exclusive.
     ``Interaction`` object specifying all interactions of the simulation, i.e. all ionization models and their configurations and so on.
     This replaces the PICMI ``add_interaction`` method.
   - ``picongpu_electrostatic_solver``:
-    an ``picmi.ElectrostaticSolver`` instance used to compute the **initial electric field** of the simulation from the charge density of the initially specified species,
+    a ``picmi.ElectrostaticSolver`` instance used to compute the **initial electric field** of the simulation from the charge density of the initially specified species,
     see :ref:`initial electric field <picmi-initial-electric-field>`. Set to ``None`` (default) to start with a vanishing electric field.
 
   additional method arguments:
