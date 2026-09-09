@@ -35,6 +35,7 @@ from picongpu.picmi.species_requirements import (
     resolving_add,
     run_construction,
 )
+from picongpu.picmi.solver import ElectrostaticSolver
 from picongpu.pypicongpu.output.openpmd_plugin import FieldDump as PyPIConGPUFieldDump
 from picongpu.pypicongpu.output.openpmd_plugin import OpenPMDPlugin
 from picongpu.pypicongpu.runner import Runner
@@ -199,6 +200,17 @@ class Simulation(picmistandard.PICMI_Simulation):
     picongpu_base_density: float | None = Field(default=None)
     """value to normalise densities with"""
 
+    picongpu_electrostatic_solver: ElectrostaticSolver | None = Field(default=None)
+    """
+    solver computing the initial electric field of the simulation
+
+    See :class:`picmi.ElectrostaticSolver`: before the time loop, PIConGPU
+    solves the Poisson equation for the charge density of the initially
+    specified species and initialises the electromagnetic field with the
+    resulting electric field. Set to None (the default) to start with a
+    vanishing electric field instead.
+    """
+
     picongpu_walltime: datetime.timedelta | None = Field(default=None)
     """time after which the cluster scheduler will stop the simulation"""
 
@@ -218,7 +230,44 @@ class Simulation(picmistandard.PICMI_Simulation):
             and isinstance(self.solver.grid, Cartesian3DGrid)
         ):
             self.__yee_compute_cfl_or_delta_t()
+        self.__check_poisson_solver_attachment()
         return self
+
+    def __check_poisson_solver_attachment(self) -> None:
+        """
+        check that the electrostatic/poisson solver is attached correctly
+
+        The PICMI standard attaches the electrostatic solver via
+        ``Simulation.solver``. PIConGPU instead keeps the electromagnetic
+        solver there and attaches :class:`picmi.ElectrostaticSolver` via the
+        ``picongpu_electrostatic_solver`` parameter, so the standard usage is a
+        user error that must be reported clearly instead of a confusing
+        ``AttributeError`` further down the line.
+        """
+        if isinstance(self.solver, ElectrostaticSolver):
+            raise AttributeError(
+                "ElectrostaticSolver was passed as Simulation.solver. "
+                "Simulation.solver is the *electromagnetic* solver of the "
+                "simulation. Attach the electrostatic solver (initial electric "
+                "field) via Simulation(picongpu_electrostatic_solver=...)."
+            )
+        if self.picongpu_electrostatic_solver is None:
+            return
+        if self.solver is None:
+            raise AttributeError(
+                "picongpu_electrostatic_solver requires an electromagnetic "
+                "Simulation.solver to run on; Simulation.solver is None."
+            )
+        electrostatic_grid = self.picongpu_electrostatic_solver.grid
+        if electrostatic_grid is not None and electrostatic_grid != self.solver.grid:
+            raise ValueError(
+                "The grid of picongpu_electrostatic_solver must match the grid "
+                "of the electromagnetic Simulation.solver; got "
+                f"{getattr(electrostatic_grid, 'number_of_cells', electrostatic_grid)!r} != "
+                f"{getattr(self.solver.grid, 'number_of_cells', self.solver.grid)!r}. "
+                "The Poisson solver runs on the electromagnetic solver's grid; "
+                "omit the grid argument (or pass the same grid object)."
+            )
 
     def __yee_compute_cfl_or_delta_t(self) -> None:
         """
@@ -429,6 +478,9 @@ class Simulation(picmistandard.PICMI_Simulation):
             grid=self.solver.grid.get_as_pypicongpu(),
             binomial_current_interpolation=self.solver.source_smoother is not None,
             moving_window=moving_window,
+            poisson_solver=self.picongpu_electrostatic_solver.get_as_pypicongpu()
+            if self.picongpu_electrostatic_solver is not None
+            else None,
             walltime=walltime or Walltime(walltime=datetime.timedelta(hours=1)),
             time_steps=time_steps,
             laser=[ll.get_as_pypicongpu() for ll in self.lasers] or None,

@@ -129,6 +129,9 @@ Parameters/Methods prefixed with ``picongpu_`` are PIConGPU-exclusive.
   - ``picongpu_interaction``:
     ``Interaction`` object specifying all interactions of the simulation, i.e. all ionization models and their configurations and so on.
     This replaces the PICMI ``add_interaction`` method.
+  - ``picongpu_electrostatic_solver``:
+    a ``picmi.ElectrostaticSolver`` instance used to compute the **initial electric field** of the simulation from the charge density of the initially specified species,
+    see :ref:`initial electric field <picmi-initial-electric-field>`. Set to ``None`` (default) to start with a vanishing electric field.
 
   additional method arguments:
 
@@ -235,6 +238,66 @@ For reference you can see how the tests in ``$PICSRC/test/python/picongpu/quick/
 .. note::
 
   Please consider contributing all custom template features and custom user input back to PIConGPU to allow further improvements of the standard, making your life and everybody else' easier.
+
+
+Initial electric field (electrostatic solver)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _picmi-initial-electric-field:
+
+PIConGPU starts every simulation with a vanishing electric field, which is then
+evolved by the electromagnetic solver given as ``Simulation.solver``. The
+PIConGPU PICMI extension additionally allows to prescribe a non-vanishing
+**initial** electric field for the starting condition: before the time loop
+starts, the static (Poisson) equation
+
+.. math::
+
+    \nabla \cdot \mathbf{E} = \frac{\rho}{\varepsilon_0}
+
+is solved once for the charge density of the initially specified species and
+the resulting electric field is handed over to the electromagnetic solver.
+
+This is configured with the (PICMI-standard) ``picmi.ElectrostaticSolver``,
+attached through ``Simulation.picongpu_electrostatic_solver``:
+
+.. code:: python
+
+    sim = picmi.Simulation(
+        ...,
+        solver=picmi.ElectromagneticSolver(grid=grid, method="Yee"),
+        picongpu_electrostatic_solver=picmi.ElectrostaticSolver(),
+    )
+
+The solver runs on the grid of the electromagnetic solver, so no additional
+grid needs to be created.
+
+Method
+------
+
+The PICMI standard lists ``FFT`` and ``Multigrid`` as methods for the
+electrostatic solver. PIConGPU instead solves the discretised Poisson equation
+iteratively with the **BiCGStab** (biconjugate gradient stabilized) Krylov
+method, optionally accelerated by a fixed number of preconditioner iterations.
+The ``method`` argument of ``picmi.ElectrostaticSolver`` therefore only
+supports ``"BICGStab"``. The corresponding command line options are emitted
+under the ``--poisson.*`` prefix.
+
+Available parameters (PIConGPU extension parameters are rejected/ignored only
+if unsupported):
+
+- ``required_precision``: maximal tolerated error (residual norm), default ``1e-8``
+- ``maximum_iterations``: maximum number of solver iterations, default ``2000``
+- ``preconditioner``: ``"default"`` or ``"none"``, default ``"default"``
+- ``preconditioner_maximum_iterations``: maximum number of preconditioner iterations, default ``20``
+
+.. note::
+
+  This feature is about the *starting condition* of the simulation. It is
+  distinct from *background/applied fields*, which superimpose external fields
+  onto the grid *during* the simulation run (currently tracked in
+  `chillenzer/picongpu#77 <https://github.com/chillenzer/picongpu/issues/77>`_).
+  An *initial* electric field produced by the electrostatic solver and a
+  *background* field applied throughout the run can be combined freely.
 
 PyPIConGPU
 ----------
